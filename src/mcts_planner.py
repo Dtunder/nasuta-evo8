@@ -107,7 +107,7 @@ class SovereignMCTS:
         # Import Nasuta's specialized MCTS components
         from gymcts.gymcts_agent import GymctsAgent
         from gymcts.gymcts_deepcopy_wrapper import DeepCopyMCTSGymEnvWrapper
-        from oeko_core.envs.oeko_env import OekoActionBuilderWrapper
+        from wrappers import OekoActionBuilderWrapper
         
         # 1. Wrap with ActionBuilder (Nasuta's translation layer)
         wrapped_env = OekoActionBuilderWrapper(sim_env)
