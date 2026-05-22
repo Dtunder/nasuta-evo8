@@ -59,11 +59,11 @@ def run_paper_failure(model, logger):
         return obs, reward, terminated, truncated, info
     RecordEpisodeStatistics.step = safe_stats_step
 
-    mcts = SovereignMCTS(model, num_simulations=100, render_tree=False)
+    # Pure MCTS (Using default MCTS without Sovereign restrictions)
+    mcts = SovereignMCTS(model, num_simulations=100, render_tree=False, sovereign_mode=False)
 
     logs = []
-    burn_events = 0
-
+    
     for step_idx in range(500):
         V_before = env.unwrapped.V.copy()
 
@@ -87,16 +87,13 @@ def run_paper_failure(model, logger):
         if action == 0:
             log_line = logger.explain_action(V_before, V_after, action, value_est)
             logs.append(log_line)
-            if "BURN" in log_line:
-                burn_events += 1
 
         if terminated or truncated:
             break
 
     rounds_survived = int(env.unwrapped.V[8])
-    final_score = int(env.unwrapped.V[9])
-    balance = info.get('balance', 0) if 'info' in locals() else 0
-    summary = f"Rounds survived: {rounds_survived} | Final score: {balance} | Burn events: {burn_events}"
+    stability = 30 - (np.max(env.unwrapped.V[:8]) - np.min(env.unwrapped.V[:8]))
+    summary = f"Rounds survived: {rounds_survived} | Final Stability: {stability:.1f}"
     logs.append(summary)
 
     log_dir = os.path.join(ROOT_DIR, "logs")
@@ -106,19 +103,35 @@ def run_paper_failure(model, logger):
     print(summary)
 
 
-def run_sovereign_success(model, logger):
-    print("--- Running Run 2: The Sovereign Success (Hybrid Heuristic) ---")
+def run_sovereign_mcts_equilibrium(model, logger):
+    print("--- Running Run 2: Sovereign MCTS Equilibrium (Evo 8) ---")
     base_env = OekoEnv(render_mode="ansi")
-    env = OekoActionBuilderWrapper(base_env)
+    wrapped_env = OekoActionBuilderWrapper(base_env)
+    env = DeepCopyMCTSGymEnvWrapper(wrapped_env)
+    env = ActionHistoryMCTSGymEnvWrapper(env, action_mask_fn=action_mask_fn)
     env.reset()
 
-    logs = []
-    burn_events = 0
+    def is_terminal_bridge(): return env.unwrapped.done
+    def get_valid_actions_bridge():
+        mask = action_mask_fn(env)
+        valid_ids = [idx for idx, m in enumerate(mask) if m]
+        return valid_ids if valid_ids else [0]
 
-    # Run loop 30 times directly simulating the heuristic fallback
-    for _ in range(30):
+    env.is_terminal = is_terminal_bridge
+    env.get_valid_actions = get_valid_actions_bridge
+
+    mcts = SovereignMCTS(model, num_simulations=100, render_tree=False)
+
+    logs = []
+
+    for step_idx in range(500):
         V_before = env.unwrapped.V.copy()
-        ap = int(V_before[9])
+
+        valid_actions = get_valid_actions_bridge()
+        if not valid_actions:
+            break
+
+        action = mcts.search(env)
 
         # Calculate Value estimate
         obs = env.unwrapped.obs
@@ -128,60 +141,25 @@ def run_sovereign_success(model, logger):
         val = model.policy.predict_values(torch.as_tensor(obs_fixed), lstm_states, episode_starts).detach()
         value_est = float(val[0][0])
 
-        dist = np.zeros(5, dtype=int)
-        V = V_before
-
-        # The heuristic fallback logic
-        if V[2] + dist[2] < 29 and ap > 0:
-            d = min(ap, 29 - (int(V[2]) + dist[2])); dist[2] += int(d); ap -= int(d)
-        p_target = 13
-        p_dist = p_target - (int(V[1]) + dist[1])
-        if ap > 0 and p_dist != 0:
-            d = min(max(1, ap // 2), abs(p_dist))
-            change = -int(d) if p_dist < 0 else int(d)
-            dist[1] += change; ap -= abs(change)
-        while ap + int(V_before[9]) > 28:
-            changed = False
-            if int(V[2]) + dist[2] < 29: dist[2] += 1; ap -= 1; changed = True
-            elif int(V[3]) + dist[3] < 18: dist[3] += 1; ap -= 1; changed = True
-            elif int(V[4]) + dist[4] < 15: dist[4] += 1; ap -= 1; changed = True
-            elif V[5] < 12:
-                if int(V[1]) + dist[1] < 18: dist[1] += 1; ap -= 1; changed = True
-                else: break
-            elif V[5] > 20:
-                if int(V[0]) + dist[0] < 25: dist[0] += 1; ap -= 1; changed = True
-            else:
-                if int(V[1]) + dist[1] > 5: dist[1] -= 1; ap -= 1; changed = True
-                else: break
-            if not changed or ap + int(V_before[9]) <= 28: break
-
-        act = np.zeros(6, dtype=np.int64)
-        act[:5] = dist
-        if V[6] > 32: act[5] = -4
-        elif V[6] < 18: act[5] = 5
-        else: act[5] = 0
-        a = act - env.unwrapped.Amin
-
-        obs, reward, terminated, truncated, info = env.unwrapped.step(a)
+        obs, reward, terminated, truncated, info = env.step(action)
 
         V_after = env.unwrapped.V.copy()
-        log_line = logger.explain_action(V_before, V_after, 0, value_est)
-        logs.append(log_line)
-        if "BURN" in log_line:
-            burn_events += 1
+        
+        if action == 0:
+            log_line = logger.explain_action(V_before, V_after, action, value_est)
+            logs.append(log_line)
 
         if terminated or truncated:
             break
 
     rounds_survived = int(env.unwrapped.V[8])
-    final_score = int(env.unwrapped.V[9])
-    balance = info.get('balance', 0) if 'info' in locals() else 0
-    summary = f"Rounds survived: {rounds_survived} | Final score: {balance} | Burn events: {burn_events}"
+    stability = 30 - (np.max(env.unwrapped.V[:8]) - np.min(env.unwrapped.V[:8]))
+    summary = f"Rounds survived: {rounds_survived} | Final Stability: {stability:.1f}"
     logs.append(summary)
 
     log_dir = os.path.join(ROOT_DIR, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    with open(os.path.join(log_dir, "xai_sovereign_survival_log.txt"), "w") as f:
+    with open(os.path.join(log_dir, "xai_sovereign_equilibrium_log.txt"), "w") as f:
         f.write("\n".join(logs) + "\n")
     print(summary)
 
@@ -192,7 +170,7 @@ def main():
     logger = SovereignXAILogger()
 
     run_paper_failure(model, logger)
-    run_sovereign_success(model, logger)
+    run_sovereign_mcts_equilibrium(model, logger)
 
 if __name__ == "__main__":
     main()

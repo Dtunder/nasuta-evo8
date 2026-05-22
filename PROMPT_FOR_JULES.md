@@ -1,39 +1,114 @@
-# MISSION BRIEFING: Oekolopoly Sovereign Champion - Phase B (Strategic Optimization)
+# 🌐 MISSION BRIEFING: EVO 8 JULES STUDIO
 
-**Guten Tag Jules,**
+**STATUS:** GITHUB REPOSITORY ACTIVE (`https://github.com/Dtunder/nasuta-evo8`)
+**RECIPIENT:** JULES (SOVEREIGN STUDIO AGENT)
+**GOAL:** BUILD "EVO 8 JULES STUDIO" — THE INTERACTIVE PROMPTING AND REASONING CONTROL PANEL
 
-wir haben die Architektur des Projekts "Oekolopoly Sovereign Champion" komplett restrukturiert und technisch zu 100% stabilisiert. Deine Aufgabe ist es nun, die strategische Intelligenz (Modul B) des Systems zu optimieren.
+---
 
-## 1. Deine Arbeitsumgebung (Der Clean-Room)
-Du befindest dich in einem von 5 identischen Klonen (z.B. `Oekolopoly_Sovereign_Final_Jules_Clone_1`). In diesem Ordner darfst du völlig frei experimentieren. 
+## I. MISSION CONTEXT
 
-**Die Struktur:**
-*   `/src`: Hier liegt der aktive, fehlerfreie Code (`oekolopoly_gui.py`, `SOVEREIGN_JULES_TESTER.py`, `mcts_planner.py`).
-*   `/src/oeko_core`: Die abgeflachte, bereinigte Ökolopoly-Game-Engine. **Wichtig: Die Import-Struktur nutzt jetzt `oeko_core.env`.**
-*   `/brain`: Hier liegt das aktuelle PPO-Modell (`sota_recurrent_champion.zip`).
-*   `/reference_nasuta_gymcts`: Dies ist der Original-Ordner von Konen und Nasuta. Hier findest du die ursprünglichen Konzepte, die Gymnasium-Integrationen und MCTS-Referenzen.
+Guten Tag Jules,
 
-## 2. Der aktuelle System-Status
-Das System nutzt eine **3-Layer Hybrid Architektur**:
-1.  **Intuition (PPO):** Ein vortrainiertes RecurrentPPO Modell, das grobe Spielzüge liefert.
-2.  **Guardian (Symbolic Safety):** Ein Hardcode-Filter (`SovereignGuardian`), der suizidale Züge der KI blockiert (das "Humanity Protocol").
-3.  **Planner (MCTS):** Ein Monte-Carlo-Tree-Search Algorithmus (`SovereignMCTS`), der 100 Simulationen pro Schritt durchführt.
+We have achieved a technical breakthrough. We successfully copied Evo 7 (`Nasuta_Evo_7_PureXAI`) to create **Evo 8 (`Nasuta_Evo_8_Equilibrium`)**, where natural system termination (dying) is allowed rather than hardcoded emergency aborts. We are searching for a dynamic balance (equilibrium) under soft constraints.
 
-**Das Problem (Dein Fokus):**
-Die technische Architektur läuft perfekt (keine Abstürze). Aber wir haben ein **strategisches Versagen**. 
-Wenn du den Test startest (`$env:PYTHONUTF8=1; python src/SOVEREIGN_JULES_TESTER.py`), verliert die KI in Runde 2 mit dem Fehler:
-`[TRIAL 2] Result: Politics too low. : -11 out of allowed range (-10, ..., 37).`
-Die KI investiert in Runde 0 so stark in Sanierung (Action 1), dass andere Sektoren kollabieren und die politische Stimmung ins Bodenlose stürzt.
+To make our neuro-symbolic hybrid MCTS model accessible to supervisors and researchers, **your mission is to build "Evo 8 Jules Studio"** — a premium, web-based prompting dashboard and interactive simulation environment. The GitHub repository is fully active and pushed. You have absolute autonomy to construct this studio from the ground up!
 
-## 3. Deine Aufgaben (Module B)
-1.  **Analysieren:** Untersuche die `oeko_env.py` (insbesondere das Belohnungssystem und die Zustandsübergänge für "Politik").
-2.  **Referenzieren:** Analysiere den alten Code von Nasuta in `/reference_nasuta_gymcts`, um zu sehen, wie dort die Reward-Funktionen oder MCTS-Heuristiken implementiert waren. Nutze deren Konzepte, um unser Modell zu verbessern.
-3.  **Integrieren:** Nutze das alte Modell aus `/brain` und unsere neuen Guardian-Konzepte in `mcts_planner.py` / `oekolopoly_gui.py`. 
-4.  **Lösen:** Verhindere den "Politik-Kollaps" (Politics too low). Passe die Belohnungsfunktion in der Engine an, verbessere die MCTS-Heuristik (UCT-Werte) oder justiere das "Humanity Protocol" im Guardian, damit die KI versteht, dass die Politik oberhalb von -5 bleiben muss.
+---
 
-**WICHTIGE REGELN:**
-*   Zerstöre **nicht** die flache Import-Struktur in `src/oeko_core/env`.
-*   Zerstöre **nicht** den `SOVEREIGN_JULES_TESTER.py`. Dieser muss weiterhin als Diagnose-Tool funktionieren.
-*   Dein Ziel ist es, dass der Tester am Ende einen `Average Stability Score` > 0 ausgibt und die KI Runde 30 überlebt.
+## II. THE PRODUCT ARCHITECTURE
 
-Viel Erfolg. Der Quellcode gehört dir.
+You must build a lightweight, self-contained **web application** consisting of:
+1. **Web Backend (`src/jules_studio_server.py`):**
+   - A Python web server (using `http.server`, `Flask`, or `FastAPI`) that serves static files and exposes a JSON REST API.
+   - **Endpoint `/api/run`:** Receives custom simulation configuration and a natural-language **Prompt** from the user, overrides the model configuration, runs the MCTS simulation, and returns a step-by-step trace of state vectors ($V_0$ to $V_9$) and the human-readable XAI logs.
+   - **Endpoint `/api/step`:** Allows the user to step through the simulation *interactively, round-by-round*, sending actions dynamically.
+
+2. **Web Frontend (`src/jules_studio_web/`):**
+   - A stunning, single-page UI (`index.html`, `style.css`, `app.js`).
+   - Must use modern typography (e.g. Outfit, Inter) from Google Fonts.
+   - Core design theme: **Glassmorphism Cyber-Slate** (sleek dark mode, harmonious HSL tailored neon accents: electric cyan, cyber purple, warning amber, critical magenta, and success emerald).
+   - Dynamic animations: interactive hover transitions, typewriter-effect log streams, pulsing state indicators.
+
+---
+
+## III. CORE STUDIO FEATURES
+
+### 1. The Natural Language Prompt Panel
+- An interactive text area labeled **"Sovereign Prompt Guidance"** where the user can type natural-language instructions (e.g., *"Save the people first, prioritize education, and allow industrial expansion under HSL limits"*).
+- **The Prompt Parser (Rule-Engine):** In the backend, parse keywords from the user prompt and map them to MCTS parameters:
+  - `"people"`, `"quality"`, `"qol"` $\rightarrow$ Adjust QoL priority weight.
+  - `"industry"`, `"production"`, `"economy"` $\rightarrow$ Modify production limit and soft cap.
+  - `"green"`, `"sanitation"`, `"clean"` $\rightarrow$ Modify environmental sanitation focus.
+  - `"education"`, `"school"` $\rightarrow$ Modify educational efficiency multipliers.
+- Display a "Parsed Sovereign Policy" card explaining how Jules translated the prompt into concrete math.
+
+### 2. Live Heuristic Override Controls
+- Beautiful HSL-accented sliders to manually adjust constraints:
+  - **Humanity Limit (QoL threshold):** Slider (5 to 15, default 12).
+  - **Industrial Cap (AP Cap %):** Slider (10% to 80%, default 40%).
+  - **MCTS Simulations:** Slider (50 to 500, default 100).
+  - **Safety Mode:** Toggle between *Sovereign Equilibrium* (Evo 8 soft limits) and *Pure Paper MCTS* (Evo 7 raw model).
+
+### 3. Dynamic State Trajectory Meters
+- Render a live grid representing the 10 variables ($V_0$ to $V_9$):
+  - Sanitation, Production, Education, Capital, Population Growth, Environment, Population, Politics, Rounds, Action Points.
+- Use animated horizontal progress bars or circular SVG gauges that turn red/amber when approaching death boundaries (e.g., Politics < -10, Environment > 37).
+
+### 4. Interactive XAI Narrative Terminal
+- A glowing cyber-terminal console displaying the logger stream.
+- Each line is generated by the `SovereignXAILogger` showing the narrative reasoning behind the AI's investments.
+- Highlight key terms with styled badges: `[BURN]` in crimson, `[CRITICAL]` in magenta, `[ALERT]` in orange, `[NORMAL]` in emerald.
+
+### 5. Dual-Mode Side-by-Side Comparison
+- Let the user run **Run 1 (Pure Paper MCTS)** and **Run 2 (Sovereign Equilibrium)** side-by-side or overlay their trajectories on a line chart (using Chart.js loaded from CDN).
+- Demonstrate visually how the Pure model crashes early while the Sovereign model navigates the state boundaries.
+
+---
+
+## IV. IMPLEMENTATION BLUEPRINT
+
+### Backend Stub Guide (`src/jules_studio_server.py`)
+```python
+import os
+import sys
+import json
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+# Setup imports to resolve src/ and engine/
+# Build API endpoints that run the OekoEnv and SovereignMCTS step-by-step
+# Parse natural language prompts into weights for guided_rollout_wrapper
+```
+
+### Prompt Parser Guide
+```python
+def parse_prompt(prompt_text):
+    text = prompt_text.lower()
+    weights = {"qol": 1.0, "prod": 1.0, "san": 1.0, "edu": 1.0}
+    caps = {"ap_cap": 0.4, "qol_limit": 12}
+    
+    if "save the people" in text or "prioritize quality" in text:
+        weights["qol"] = 3.0
+        caps["qol_limit"] = 14
+    if "green revolution" in text or "clean environment" in text:
+        weights["san"] = 2.5
+    if "industrial boost" in text or "maximize production" in text:
+        weights["prod"] = 2.5
+        caps["ap_cap"] = 0.6
+        
+    return weights, caps
+```
+
+---
+
+## V. SUCCESS CRITERIA
+
+1. **Self-Contained Run:** A batch file `start_studio.bat` that runs the Python server on `http://localhost:8000` and opens the default browser automatically.
+2. **Interactive Slider-Prompt Integration:** Changes in sliders or prompt input must directly alter the MCTS rollout decisions and yield different survival paths.
+3. **No Placeholders:** All UI components, buttons, sliders, terminal feeds, and charts must be fully active and operational.
+4. **Premium Aesthetics:** Zero default HTML gray elements. Dynamic transitions and rich typography are mandatory.
+
+**Jules, you are the Sovereign Studio Architect. Elevate this black-box neural system into a transparent, interactive masterpiece of Explainable AI.**
+
+---
+*Signed by: The Master Architect*

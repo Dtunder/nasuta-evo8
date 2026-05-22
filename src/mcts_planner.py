@@ -81,7 +81,7 @@ def guided_rollout_wrapper(self_wrapper):
         return -5000000
 
 class SovereignMCTS:
-    def __init__(self, model, num_simulations=1000, render_tree=True):
+    def __init__(self, model, num_simulations=1000, render_tree=True, sovereign_mode=True):
         """
         Initializes the Sovereign MCTS Planner.
         
@@ -89,10 +89,12 @@ class SovereignMCTS:
             model: The RecurrentPPO model to use as a policy guide.
             num_simulations: How many 'futures' to simulate (Default 3000 for Nasuta-style deep thinking).
             render_tree: Whether to print the visual MCTS tree to console.
+            sovereign_mode: Whether to enable Humanity Limit and Industrial Cap restrictions.
         """
         self.model = model
         self.num_simulations = num_simulations
         self.render_tree = render_tree
+        self.sovereign_mode = sovereign_mode
 
     def search(self, env) -> int:
         """
@@ -134,27 +136,28 @@ class SovereignMCTS:
                 
             valid = [i for i, v in enumerate(mask) if v]
             
-            # SOVEREIGN GOVERNANCE: Humanity Protocol (Anti-Suicide Layer)
-            V_real = wrapped_env.env.unwrapped.V
-            
-            # 1. THE HUMANITY LIMIT: If QoL is dropping, we MUST invest in QoL (Action 5)
-            # If QoL < 12, we force a 1:1 balance with Production or absolute priority if < 8
-            if avail > 0:
-                if V_real[3] < 8:
-                    if 5 in valid: return [5] # Absolute survival
-                elif V_real[3] < 12:
-                    # Forced balance: If we just did Prod, we MUST do QoL
-                    last_actions = getattr(wrapped_env, '_current_action_dict', {})
-                    if last_actions.get("Production", 0) > last_actions.get("Quality of Life", 0):
-                        if 5 in valid: return [5]
-            
-            # 2. THE INDUSTRIAL CAP: Never spend more than 40% of AP on Production in one turn
-            # unless everything else is perfect.
-            if avail > 0 and 2 in valid:
-                prod_invested = getattr(wrapped_env, '_current_action_dict', {}).get("Production", 0)
-                total_ap_start = V_real[9] + prod_invested + getattr(wrapped_env, '_current_action_dict', {}).get("Sanitation", 0) # Approx
-                if prod_invested >= max(2, total_ap_start // 2.5):
-                    if 2 in valid: valid.remove(2) # Soft cap
+            if self.sovereign_mode:
+                # SOVEREIGN GOVERNANCE: Humanity Protocol (Anti-Suicide Layer)
+                V_real = wrapped_env.env.unwrapped.V
+                
+                # 1. THE HUMANITY LIMIT: If QoL is dropping, we MUST invest in QoL (Action 5)
+                # If QoL < 12, we force a 1:1 balance with Production or absolute priority if < 8
+                if avail > 0:
+                    if V_real[3] < 8:
+                        if 5 in valid: return [5] # Absolute survival
+                    elif V_real[3] < 12:
+                        # Forced balance: If we just did Prod, we MUST do QoL
+                        last_actions = getattr(wrapped_env, '_current_action_dict', {})
+                        if last_actions.get("Production", 0) > last_actions.get("Quality of Life", 0):
+                            if 5 in valid: return [5]
+                
+                # 2. THE INDUSTRIAL CAP: Never spend more than 40% of AP on Production in one turn
+                # unless everything else is perfect.
+                if avail > 0 and 2 in valid:
+                    prod_invested = getattr(wrapped_env, '_current_action_dict', {}).get("Production", 0)
+                    total_ap_start = V_real[9] + prod_invested + getattr(wrapped_env, '_current_action_dict', {}).get("Sanitation", 0) # Approx
+                    if prod_invested >= max(2, total_ap_start // 2.5):
+                        if 2 in valid: valid.remove(2) # Soft cap
             
             # HARD MASKING: Only remove Action 0 if there's SOMETHING ELSE to do
             if avail > 0 and 0 in valid and len(valid) > 1:
