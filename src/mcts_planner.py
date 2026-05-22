@@ -12,7 +12,8 @@ def patched_lstm_init(self, input_size, hidden_size, *args, **kwargs):
 nn.LSTM.__init__ = patched_lstm_init
 
 # Priority paths for Nasuta's original work
-NASUTA_ROOT = r"G:\Meine Ablage\oeko_core2\gymcts-games-main\gymcts-games-main\src"
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NASUTA_ROOT = os.path.join(ROOT_DIR, "reference_nasuta_gymcts", "gymcts-games-main", "src")
 if NASUTA_ROOT not in sys.path:
     sys.path.insert(0, NASUTA_ROOT)
 

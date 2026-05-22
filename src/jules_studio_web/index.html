@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evo 8 Jules Studio | Sovereign Equilibrium</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <main class="studio-container">
+        <header class="cyber-header">
+            <div class="logo-area">
+                <span class="glitch" data-text="NASUTA">NASUTA</span>
+                <span class="sub-logo">EVO 8 // JULES STUDIO</span>
+            </div>
+            <div class="status-badge">
+                <div class="pulse-dot"></div>
+                <span id="system-status">SOVEREIGN_IDLE</span>
+            </div>
+        </header>
+
+        <section class="top-row">
+            <div class="glass-card prompt-panel">
+                <h3><i class="icon-terminal"></i> SOVEREIGN_COMMAND</h3>
+                <textarea id="prompt-input" placeholder="Enter natural language guidance (e.g. 'prioritize green energy and people's health')"></textarea>
+                <div class="slider-group">
+                    <div class="slider-item">
+                        <label>Stability Bias</label>
+                        <input type="range" id="stability-slider" min="0" max="100" value="80">
+                        <span class="val">80%</span>
+                    </div>
+                    <div class="slider-item">
+                        <label>Humanity Limit</label>
+                        <input type="range" id="humanity-slider" min="0" max="100" value="100">
+                        <span class="val">ON</span>
+                    </div>
+                </div>
+                <button id="run-btn" class="glow-btn">INITIALIZE SIMULATION</button>
+            </div>
+
+            <div class="glass-card state-monitor">
+                <h3><i class="icon-cpu"></i> CORE_VARIABLES</h3>
+                <div class="indicators-grid" id="indicators">
+                    <!-- Dynamic indicators -->
+                </div>
+            </div>
+        </section>
+
+        <section class="middle-row">
+            <div class="glass-card chart-panel">
+                <div class="chart-header">
+                    <h3>EQUILIBRIUM_TRAJECTORY</h3>
+                    <div class="legend">
+                        <span class="leg-item sovereign">Sovereign MCTS</span>
+                        <span class="leg-item paper">Paper MCTS</span>
+                    </div>
+                </div>
+                <canvas id="main-chart"></canvas>
+            </div>
+            
+            <div class="glass-card log-panel">
+                <h3>XAI_REALTIME_LOG</h3>
+                <div id="log-terminal" class="terminal">
+                    <div class="line sys">> SYSTEM READY. WAITING FOR COMMAND...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
