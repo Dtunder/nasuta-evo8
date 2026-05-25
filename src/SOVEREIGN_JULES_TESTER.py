@@ -84,7 +84,10 @@ class SovereignJulesTester:
             def sovereign_rollout():
                 obs = env.unwrapped.obs
                 obs_fixed = np.array([obs], dtype=np.float32)
-                lstm_states = (torch.zeros(2, 1, 256), torch.zeros(2, 1, 256)) 
+                _lstm = getattr(self.model.policy, 'lstm_actor', None) or getattr(self.model.policy, 'lstm_critic', None)
+                _h = getattr(_lstm, 'hidden_size', 256)
+                _layers = getattr(_lstm, 'num_layers', 2)
+                lstm_states = (torch.zeros(_layers, 1, _h), torch.zeros(_layers, 1, _h))
                 episode_starts = torch.ones(1, dtype=torch.float32)
                 val = self.model.policy.predict_values(torch.as_tensor(obs_fixed), lstm_states, episode_starts).detach()
                 return float(val[0][0])

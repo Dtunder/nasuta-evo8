@@ -29,6 +29,13 @@ from gymcts.gymcts_deepcopy_wrapper import DeepCopyMCTSGymEnvWrapper
 from gymcts.gymcts_action_history_wrapper import ActionHistoryMCTSGymEnvWrapper
 from gymnasium.wrappers import RecordEpisodeStatistics
 
+def _lstm_zero_states(model):
+    """Returns fresh zero LSTM states sized from the model's actual architecture."""
+    lstm = getattr(model.policy, 'lstm_actor', None) or getattr(model.policy, 'lstm_critic', None)
+    h = getattr(lstm, 'hidden_size', 256)
+    layers = getattr(lstm, 'num_layers', 2)
+    return (torch.zeros(layers, 1, h), torch.zeros(layers, 1, h))
+
 def action_mask_fn(curr_env):
     curr = curr_env
     while hasattr(curr, 'env'):
@@ -75,7 +82,7 @@ def run_paper_failure(model, logger):
 
         obs = env.unwrapped.obs
         obs_fixed = np.array([obs], dtype=np.float32)
-        lstm_states = (torch.zeros(2, 1, 256), torch.zeros(2, 1, 256))
+        lstm_states = _lstm_zero_states(model)
         episode_starts = torch.ones(1, dtype=torch.float32)
         val = model.policy.predict_values(torch.as_tensor(obs_fixed), lstm_states, episode_starts).detach()
         value_est = float(val[0][0])
@@ -136,7 +143,7 @@ def run_sovereign_mcts_equilibrium(model, logger):
         # Calculate Value estimate
         obs = env.unwrapped.obs
         obs_fixed = np.array([obs], dtype=np.float32)
-        lstm_states = (torch.zeros(2, 1, 256), torch.zeros(2, 1, 256))
+        lstm_states = _lstm_zero_states(model)
         episode_starts = torch.ones(1, dtype=torch.float32)
         val = model.policy.predict_values(torch.as_tensor(obs_fixed), lstm_states, episode_starts).detach()
         value_est = float(val[0][0])

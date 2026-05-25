@@ -368,8 +368,14 @@ class OekoActionBuilderWrapper(gym.ActionWrapper):
 
         # Basic sector validations
         inc_san_valid = (self.env.unwrapped.V[0] + self._current_action_dict['Sanitation'] + 1) <= self.env.unwrapped.Vmax[0]
-        inc_prod_valid = (self.env.unwrapped.V[1] + self._current_action_dict['Production'] + 1) <= self.env.unwrapped.Vmax[1]
-        dec_prod_valid = (self.env.unwrapped.V[1] + self._current_action_dict['Production'] - 1) >= self.env.unwrapped.Vmin[1]
+        inc_prod_valid = (
+            (self.env.unwrapped.V[1] + self._current_action_dict['Production'] + 1) <= self.env.unwrapped.Vmax[1]
+            and self._production_change_direction in ["up", None]
+        )
+        dec_prod_valid = (
+            (self.env.unwrapped.V[1] + self._current_action_dict['Production'] - 1) >= self.env.unwrapped.Vmin[1]
+            and self._production_change_direction in ["down", None]
+        )
         inc_edu_valid = (self.env.unwrapped.V[2] + self._current_action_dict['Education'] + 1) <= self.env.unwrapped.Vmax[2]
         inc_qol_valid = (self.env.unwrapped.V[3] + self._current_action_dict['Quality of Life'] + 1) <= self.env.unwrapped.Vmax[3]
         inc_pg_valid = (self.env.unwrapped.V[4] + self._current_action_dict['Population Growth'] + 1) <= self.env.unwrapped.Vmax[4]
@@ -457,122 +463,3 @@ class OekoActionBuilderWrapper(gym.ActionWrapper):
         self._cached_obs = obs.copy()
         return self._extend_obs(obs), info
 
-
-class DynamicReserveGovernorV3(gym.ActionWrapper):
-    """
-    Governor V3: Ensures Maintenance AP is funded before Growth AP.
-    Prevents systemic collapse by prioritizing QoL and Politics.
-    """
-    def __init__(self, env, safe_threshold=12.0):
-        super().__init__(env)
-        self.safe_threshold = safe_threshold
-
-    def action(self, raw_action):
-        """
-        Intercepts raw actions and enforces maintenance reserves.
-        raw_action: np.array([san, prod, edu, qol, pg, pg_extra])
-        """
-        v = self.env.unwrapped.V
-        ap_total = v[9]
-        
-        # 1. Estimate deficits (Target 12.0 for stability corridor edge)
-        qol_val = v[3]
-        pol_val = v[7]
-        
-        # Heuristic: cost to restore to threshold (1 AP approx 1 Point)
-        qol_deficit = max(0.0, self.safe_threshold - qol_val)
-        pol_deficit = max(0.0, self.safe_threshold - pol_val)
-        c_maint = qol_deficit + pol_deficit
-        
-        # 2. Partition AP
-        if ap_total <= c_maint:
-            # Crisis Mode: Divert all to QoL and Sanitation (Politics helper)
-            safe_action = np.zeros_like(raw_action)
-            if c_maint > 0:
-                qol_ratio = qol_deficit / c_maint
-                safe_action[3] = ap_total * qol_ratio  # QoL
-                safe_action[0] = ap_total * (1 - qol_ratio)  # Sanitation
-            return safe_action
-        
-        # 3. Growth Mode: Fund maintenance, then distribute remainder
-        ap_growth = ap_total - c_maint
-        
-        # Start with maintenance
-        safe_action = np.zeros_like(raw_action)
-        safe_action[3] = qol_deficit # QoL
-        safe_action[0] = pol_deficit # Use sanitation as proxy for politics stability
-        
-        # Normalize and distribute growth surplus based on agent policy
-        # Filter indices for growth (Production=1, Education=2)
-        growth_indices = [1, 2]
-        raw_growth = np.abs(raw_action[growth_indices])
-        total_growth_desire = np.sum(raw_growth) + 1e-8
-        
-        for i, idx in enumerate(growth_indices):
-            safe_action[idx] += ap_growth * (raw_growth[i] / total_growth_desire)
-            
-        return safe_action
-
-
-class HomeostaticRewardV3(gym.Wrapper):
-    """
-    Reward V3: Homeostatic Drive Reduction.
-    Rewards reducing the distance to the "Patient Gardener" setpoint (16.0).
-    """
-    def __init__(self, env, target=16.0, exponent=2.0):
-        super().__init__(env)
-        self.target = target
-        self.exponent = exponent
-        self.prev_drive = None
-        self.base_weights = np.array([1.0, 1.2, 1.5, 2.0, 2.0, 1.5, 1.0, 2.0])
-
-    def _get_drive(self):
-        state = self.env.unwrapped.V[:8]
-        year = self.env.unwrapped.V[8]
-        
-        weights = np.copy(self.base_weights)
-        m = self.exponent
-        
-        # Curriculum weights (from Research Report)
-        if year <= 5:
-            # Phase 1: Stabilization
-            weights[3] *= 2.0 # QoL
-            weights[7] *= 2.0 # Politics
-            m = 1.5
-        elif 6 <= year <= 14:
-            # Phase 2: Transition (The Year 12 push)
-            weights[2] *= 3.0 # Massive weight on Education (Education 21)
-            weights[4] *= 2.5 # Heavy penalty for Pop Growth
-            m = 2.0
-        else:
-            # Phase 3: Deep Homeostasis
-            m = 2.5 # Strict adherence to setpoint
-            
-        distances = np.abs(state - self.target)
-        return np.sum(weights * (distances ** m))
-
-    def step(self, action):
-        if self.prev_drive is None:
-            self.prev_drive = self._get_drive()
-            
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        
-        curr_drive = self._get_drive()
-        reduction = self.prev_drive - curr_drive
-        
-        # Survival length weighting
-        year = self.env.unwrapped.V[8]
-        
-        if terminated and year < 30:
-            reward = -20000.0
-        elif terminated and year >= 30:
-            reward = 50000.0
-        else:
-            reward = reduction
-            
-        self.prev_drive = curr_drive
-        return obs, reward, terminated, truncated, info
-
-    def reset(self, **kwargs):
-        self.prev_drive = None
-        return self.env.reset(**kwargs)

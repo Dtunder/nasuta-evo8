@@ -71,7 +71,7 @@ class SovereignGuardian:
     def __init__(self, env):
         self.env = env
 
-    def get_final_action(self, mcts_move, avail):
+    def get_final_action(self, avail, mcts_move=None):
         V = self.env.unwrapped.V
         dist = np.zeros(5, dtype=int)
         reasons = []
@@ -742,7 +742,7 @@ class Game:
     def predict_next_move(self) -> None:
         # Use sovereign guardian for BestMoveAI to ensure 30 rounds survival
         avail = int(self.env.unwrapped.V[self.env.unwrapped.POINTS])
-        a_for_env, reason = self.guardian.get_final_action(0, avail)
+        a_for_env, reason = self.guardian.get_final_action(avail)
         
         self.current_action = a_for_env
         self.available_actionpoints = self.env.unwrapped.V[self.env.unwrapped.POINTS]
@@ -762,7 +762,7 @@ class Game:
         
         # 1. Fast Sovereign Guardian Heuristic bypassing slow MCTS
         avail = int(self.env.unwrapped.V[self.env.unwrapped.POINTS])
-        a_for_env, reason = self.guardian.get_final_action(0, avail)
+        a_for_env, reason = self.guardian.get_final_action(avail)
         
         # 3. Update GUI state
         self.current_action = a_for_env

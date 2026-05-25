@@ -20,6 +20,13 @@ if NASUTA_ROOT not in sys.path:
 # Standard MCTS Imports for oeko_core
 from oeko_core.envs.oeko_env import OekoEnv
 
+# Register env if not already registered (allows standalone use of mcts_planner)
+from gymnasium.envs.registration import register as _gym_register
+try:
+    _gym_register(id='oeko_core-v2', entry_point='oeko_core.envs.oeko_env:OekoEnv')
+except Exception:
+    pass  # Already registered
+
 # GLOBAL SOVEREIGN COMPONENTS (Avoids DeepCopy overhead)
 _GLOBAL_SOVEREIGN_MODEL = None
 
@@ -31,52 +38,54 @@ def guided_rollout_wrapper(self_wrapper):
         temp_env = self_wrapper.env.unwrapped
         total_reward = 0
         d_done = False
-        steps = 0
-        
-        while not d_done and steps < 30:
+        rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
+
+        while not d_done and rounds_played < 30:
             V = temp_env.V
             # SYNC FIX: Access the wrapper's internal AP tracker if available
             if hasattr(self_wrapper, '_available_action_points'):
                 avail = int(self_wrapper._available_action_points)
             else:
                 avail = int(V[9])
-            
+
             if temp_env.done:
                 break
-                
+
             valid_actions = self_wrapper.get_valid_actions()
             if not valid_actions: break
-            
+
             # HEURISTIC SELECTION (Survival-First Sovereign Logic)
             if avail > 0:
                 # 1. CRITICAL PROTECTION: Quality of Life (Protects Politics/Stability)
                 if 5 in valid_actions and V[3] < 15: move = 5
-                # 2. SYSTEMIC STABILITY: Production (Protects Economy/Politics)
-                elif 2 in valid_actions and V[7] < 10: move = 2
+                # 2. SYSTEMIC STABILITY: Production (build it up if low) — FIX: was V[7] (Politics), must be V[1]
+                elif 2 in valid_actions and V[1] < 10: move = 2
                 # 3. ENVIRONMENTAL RECOVERY: Sanitation
                 elif 1 in valid_actions and V[5] < 15: move = 1
                 # 4. EDUCATION (Long-term)
                 elif 4 in valid_actions and V[2] < 15: move = 4
-                else: 
+                else:
                     # If stable, diversify
                     investments = [a for a in valid_actions if a != 0]
                     move = np.random.choice(investments) if investments else 0
             else:
                 move = 0 # Must end round
-            
+
             obs_ext, rew, term, trunc, info = self_wrapper.step(move)
-            
-            # Stability Reward
-            stability = 30 - (np.max(V[:8]) - np.min(V[:8]))
+
+            # FIX: Compute stability on V AFTER the step, not before
+            V_after = temp_env.V
+            stability = 30 - (np.max(V_after[:8]) - np.min(V_after[:8]))
             total_reward += stability + rew
-            if move == 0: total_reward += 10000 
-            
+            if move == 0:
+                total_reward += 10000
+                rounds_played += 1  # FIX: only increment round counter when round ends
+
             d_done = term or trunc
-            steps += 1
-            
+
         if d_done and not (int(temp_env.V[8]) >= 30):
-            total_reward -= 2000000 
-            
+            total_reward -= 2000000
+
         return total_reward
     except Exception as e:
         return -5000000
@@ -189,11 +198,14 @@ class SovereignMCTS:
                     d_curr = dst
                     while d_curr is not None:
                         if hasattr(d_curr, '_current_action_dict'):
-                            # SYNC FOUND!
+                            # SYNC FOUND — copy all wrapper state including direction flags
                             d_curr._available_action_points = int(s_curr._available_action_points)
                             d_curr._available_extra_points = int(s_curr._available_extra_points)
                             for key in s_curr._current_action_dict:
                                 d_curr._current_action_dict[key] = s_curr._current_action_dict[key]
+                            # FIX: sync direction flags so MCTS sees the same action constraints
+                            d_curr._production_change_direction = s_curr._production_change_direction
+                            d_curr._population_extra_change_direction = s_curr._population_extra_change_direction
                             return True
                         d_curr = getattr(d_curr, 'env', None)
                 s_curr = getattr(s_curr, 'env', None)
