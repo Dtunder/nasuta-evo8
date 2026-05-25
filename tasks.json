@@ -1,0 +1,22 @@
+[
+    {
+        "id": 1,
+        "task": "Optimiere in `make_presentation.py` das Design von Slide 5 (Überlebte Runden): Wenn die dynamische CSV `multiseed_raw.csv` vorliegt, zeichne zusätzlich eine kleine gestrichelte horizontale Linie bei y=20 (mittlere Überlebenszeit) ein, um die visuelle Stabilität hervorzuheben.",
+        "status": "pending",
+        "agent": "gemini1",
+        "attempts": 0,
+        "max_attempts": 3,
+        "validation_cmd": "python make_presentation.py",
+        "error_logs": []
+    },
+    {
+        "id": 2,
+        "task": "Fuege in `src/xai_logger.py` eine zusaetzliche Methode hinzu: `log_burn_event(round_idx, ap_before, ap_after)`. Diese soll XAI-kompatibel begründen, warum die AP-Burn-Mechanik in dieser Runde ausgeloest wurde, um eine positive Rueckkopplung zu bremsen.",
+        "status": "pending",
+        "agent": "gemini2",
+        "attempts": 0,
+        "max_attempts": 3,
+        "validation_cmd": "python src/xai_runner.py",
+        "error_logs": []
+    }
+]
