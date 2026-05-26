@@ -461,6 +461,8 @@ class OekoEnv(gym.Env):
                 done_reason = "Tried to exceed available amount of action points. "
             # done_reason += f"Tried to use {used_points} action points, but only between 0 and {self.V[self.POINTS]} are available"
             done_reason_detail = f"{used_points} not in (0, ..., {self.V[self.POINTS]})"
+            self.done_info = done_reason
+            self.done_reason_detail = done_reason_detail
             return self.obs, 0, self.done, truncated, {'balance (always)': self.balance_always,
                                                        'balance_numerator (always)': self.balance_numerator_always,
                                                        'balance': self.balance,
@@ -482,6 +484,8 @@ class OekoEnv(gym.Env):
                     done_reason = f"Distribution of action points pushes {self.V_NAMES[i]} above limit. "
                 done_reason_detail = f"{self.V[i] + action[i]} action points are not in ({self.Vmin[i]}, ..., {self.Vmax[i]})"
                 inval_m_info = f"Invalid number of action points assigned to {self.V_NAMES[i]}."
+                self.done_info = done_reason
+                self.done_reason_detail = done_reason_detail
                 return self.obs, 0, self.done, truncated, {'balance (always)': self.balance_always,
                                                            'balance_numerator (always)': self.balance_numerator_always,
                                                            'balance': self.balance,
@@ -543,7 +547,7 @@ class OekoEnv(gym.Env):
             self.done_reason_detail = f"{self.V[self.POINTS]} {OOR} (0, ..., 36)."
             if clipping: self.V[self.POINTS] = 36           # /2025/12/11/WK/ Bug fix: added 'if clipping' (see above)
 
-        if self.V[self.ROUND] == 30:
+        if self.V[self.ROUND] == 30 and not self.done:
             self.done = True
             self.done_info = 'Maximum number of rounds reached.'
 

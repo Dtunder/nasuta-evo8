@@ -78,7 +78,7 @@ def run_once(model, sovereign_mode: bool, seed: int) -> dict:
     mcts = SovereignMCTS(model, num_simulations=num_sims, render_tree=False, sovereign_mode=sovereign_mode)
 
     # Simulation Loop
-    for step_idx in range(5000): # High limit — no round cap, runs until natural death
+    for step_idx in range(5000): # Safety limit; env terminates at round 30 (paper cap) or on earlier death
         valid_actions = get_valid_actions_bridge()
         if not valid_actions:
             break
@@ -93,15 +93,46 @@ def run_once(model, sovereign_mode: bool, seed: int) -> dict:
     inner = env.unwrapped
     rounds_survived = int(final_V[8])
     stability = 30 - (np.max(final_V[:8]) - np.min(final_V[:8]))
-    balance = float(getattr(inner, 'balance_always', 0))
+    # Paper-correct balance: env zeroes it outside rounds 10-30 (inner.balance respects that;
+    # balance_always does not and would bypass the range(10,31) revert).
+    balance = float(getattr(inner, 'balance', 0.0))
 
-    # Death cause — no fixed round ceiling anymore
-    if final_V[7] < -10: death_cause = 'politics_collapse'
-    elif final_V[5] > 29: death_cause = 'env_collapse'
-    elif final_V[6] > 60: death_cause = 'overpopulation'
-    elif final_V[6] < 13: death_cause = 'extinction'
-    elif final_V[9] < 1: death_cause = 'no_ap'
-    else: death_cause = 'survived'
+    # Death cause — read from env's own detection (source of truth).
+    # The previous version reverse-engineered this from final_V, but the env clips
+    # variables back into valid range and zeroes POINTS on any death, so those
+    # threshold checks were dead code masking every real cause as 'no_ap'.
+    di = (getattr(inner, 'done_info', '') or '')
+    dtl = getattr(inner, 'dtl', {})
+    etl = getattr(inner, 'etl', {})
+    th = etl.get(' too high. ')
+    too_high = bool(th) and di.endswith(th)
+
+    def _starts(d, key):
+        prefix = d.get(key)
+        return bool(prefix) and di.startswith(prefix)
+
+    if di.startswith('Maximum number of rounds'):
+        death_cause = 'survived'
+    elif _starts(dtl, 'Politics'):
+        death_cause = 'politics_collapse'
+    elif _starts(dtl, 'EnvirDamage'):
+        death_cause = 'env_collapse'
+    elif _starts(dtl, 'Population'):
+        death_cause = 'overpopulation' if too_high else 'extinction'
+    elif _starts(dtl, 'ReproRate'):
+        death_cause = 'reprorate_collapse'
+    elif _starts(dtl, 'QualityOfLife'):
+        death_cause = 'quality_of_life_collapse'
+    elif _starts(dtl, 'Enlightenment'):
+        death_cause = 'education_collapse'
+    elif _starts(dtl, 'Production'):
+        death_cause = 'production_collapse'
+    elif _starts(dtl, 'Redevelop'):
+        death_cause = 'sanitation_collapse'
+    elif _starts(etl, 'NumAPointsTooLow') or _starts(etl, 'NumAPointsTooHigh'):
+        death_cause = 'ap_out_of_range'
+    else:
+        death_cause = 'unknown'
 
     return {
         'rounds_survived': rounds_survived,
