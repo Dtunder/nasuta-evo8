@@ -303,7 +303,7 @@ class OekoEnv(gym.Env):
                 done = True
                 l = self.etl[" too high. "] if self.V[self.PRODUCTION] > 29 else self.etl[" too low. "]
                 done_info = self.dtl["Production"] + l
-                done_reason_detail = f"{self.V[self.SANITATION]} {OOR} (1, ..., 29)."
+                done_reason_detail = f"{self.V[self.PRODUCTION]} {OOR} (1, ..., 29)."
 
         if not done:
             box4 = gb.get_box4(self.clip(self.PRODUCTION))
@@ -605,6 +605,7 @@ class OekoEnv(gym.Env):
             self.V = self.get_initial_v()
 
         self.curr_action = np.zeros(self.action_space.shape[0], 'int64')
+        self.prev_result = self.V.copy()
         self.curr_result = self.V.copy()
 
         self.done = False

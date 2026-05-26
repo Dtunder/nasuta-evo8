@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 import gymnasium as gym
-import torch
 import torch.nn as nn
 
 # MANDATORY SOVEREIGN LSTM PATCH (Fixes PyTorch/Gymnasium int64 conflict)
@@ -17,9 +16,6 @@ NASUTA_ROOT = os.path.join(ROOT_DIR, "reference_nasuta_gymcts", "gymcts-games-ma
 if NASUTA_ROOT not in sys.path:
     sys.path.insert(0, NASUTA_ROOT)
 
-# Standard MCTS Imports for oeko_core
-from oeko_core.envs.oeko_env import OekoEnv
-
 # Register env if not already registered (allows standalone use of mcts_planner)
 from gymnasium.envs.registration import register as _gym_register
 try:
@@ -29,8 +25,6 @@ except Exception:
 
 # GLOBAL SOVEREIGN COMPONENTS (Avoids DeepCopy overhead)
 _GLOBAL_SOVEREIGN_MODEL = None
-
-import time
 
 def guided_rollout_wrapper(self_wrapper):
     """Uses a FAST heuristic for massive simulation throughput."""
@@ -162,7 +156,7 @@ class SovereignMCTS:
                 # unless everything else is perfect.
                 if avail > 0 and 2 in valid:
                     prod_invested = getattr(wrapped_env, '_current_action_dict', {}).get("Production", 0)
-                    total_ap_start = V_real[9] + prod_invested + getattr(wrapped_env, '_current_action_dict', {}).get("Sanitation", 0) # Approx
+                    total_ap_start = V_real[9]
                     if prod_invested >= max(2, total_ap_start // 2.5):
                         if 2 in valid: valid.remove(2) # Soft cap
             
@@ -173,8 +167,8 @@ class SovereignMCTS:
 
         wrapped_env.get_valid_actions = get_sovereign_valid_actions
         
-        # 4. MONKEY PATCH THE CLASS (Top-level function avoids closure capture)
-        DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
+        # 4. PATCH INSTANCE ONLY (avoids polluting all DeepCopyMCTSGymEnvWrapper instances)
+        wrapped_env.rollout = lambda: guided_rollout_wrapper(wrapped_env)
         
         wrapped_env.reset()
         

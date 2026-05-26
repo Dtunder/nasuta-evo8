@@ -47,7 +47,7 @@ def action_mask_fn(curr_env):
         if hasattr(curr, 'valid_action_mask'):
             return curr.valid_action_mask()
         curr = curr.env
-    return np.ones(10, dtype=bool)
+    return np.ones(9, dtype=bool)
 
 def run_once(model, sovereign_mode: bool, seed: int) -> dict:
     # Deterministisches Seeding
