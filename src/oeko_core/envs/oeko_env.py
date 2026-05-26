@@ -543,6 +543,10 @@ class OekoEnv(gym.Env):
             self.done_reason_detail = f"{self.V[self.POINTS]} {OOR} (0, ..., 36)."
             if clipping: self.V[self.POINTS] = 36           # /2025/12/11/WK/ Bug fix: added 'if clipping' (see above)
 
+        if self.V[self.ROUND] == 30:
+            self.done = True
+            self.done_info = 'Maximum number of rounds reached.'
+
         boxD = gb.get_boxD(self.clip(self.QUALITY_OF_LIFE))
         a = float((boxD * 3 + self.clip(self.POLITICS)) * 10)
         b = float(self.V[self.ROUND] + 3)
@@ -554,14 +558,14 @@ class OekoEnv(gym.Env):
         # if clipping:
         #     assert self.observation_space.contains(self.obs), f"obs not in observation_space: obs={self.obs}"
 
-        if self.V[self.ROUND] >= 10:
+        if self.V[self.ROUND] in range(10, 31):
             self.balance = self.balance_always
             self.balance_numerator = self.balance_numerator_always
         else:
             self.balance = 0
             self.balance_numerator = 0
 
-        if self.done and self.V[self.ROUND] >= 10:
+        if self.done and self.V[self.ROUND] in range(10, 31):
             reward = self.balance
         else:
             reward = 0
