@@ -74,10 +74,11 @@ def run_once(model, sovereign_mode: bool, seed: int) -> dict:
     env.get_valid_actions = get_valid_actions_bridge
 
     # MCTS Planner
-    mcts = SovereignMCTS(model, num_simulations=100, render_tree=False, sovereign_mode=sovereign_mode)
+    num_sims = int(os.environ.get('NUM_SIMS', '100'))
+    mcts = SovereignMCTS(model, num_simulations=num_sims, render_tree=False, sovereign_mode=sovereign_mode)
 
     # Simulation Loop
-    for step_idx in range(500): # High limit, usually ends at 30
+    for step_idx in range(5000): # High limit — no round cap, runs until natural death
         valid_actions = get_valid_actions_bridge()
         if not valid_actions:
             break
@@ -89,23 +90,23 @@ def run_once(model, sovereign_mode: bool, seed: int) -> dict:
             break
 
     final_V = env.unwrapped.V
+    inner = env.unwrapped
     rounds_survived = int(final_V[8])
-    # Stability metric: 30 - (max(V[:8]) - min(V[:8]))
     stability = 30 - (np.max(final_V[:8]) - np.min(final_V[:8]))
-    
-    # Death cause derivation
-    death_cause = 'survived_30'
-    if rounds_survived < 30:
-        if final_V[7] < -10: death_cause = 'politics_collapse'
-        elif final_V[5] > 29: death_cause = 'env_collapse'
-        elif final_V[6] > 60: death_cause = 'overpopulation'
-        elif final_V[6] < 13: death_cause = 'extinction'
-        elif final_V[9] < 1: death_cause = 'no_ap'
-        else: death_cause = 'other'
-    
+    balance = float(getattr(inner, 'balance_always', 0))
+
+    # Death cause — no fixed round ceiling anymore
+    if final_V[7] < -10: death_cause = 'politics_collapse'
+    elif final_V[5] > 29: death_cause = 'env_collapse'
+    elif final_V[6] > 60: death_cause = 'overpopulation'
+    elif final_V[6] < 13: death_cause = 'extinction'
+    elif final_V[9] < 1: death_cause = 'no_ap'
+    else: death_cause = 'survived'
+
     return {
         'rounds_survived': rounds_survived,
         'stability': float(stability),
+        'balance': balance,
         'death_cause': death_cause
     }
 
@@ -130,12 +131,13 @@ def main():
         for seed in seeds:
             start_t = time.time()
             try:
+                print(f"  Starting Seed {seed:02d}...", end="", flush=True)
                 res = run_once(model, sovereign_mode, seed)
                 res['model'] = mode_label
                 res['seed'] = seed
                 all_results.append(res)
                 duration = time.time() - start_t
-                print(f"Seed {seed:02d}: Rounds={res['rounds_survived']:02d}, Stability={res['stability']:.1f}, Death={res['death_cause']} ({duration:.1f}s)")
+                print(f"\r  Seed {seed:02d}: Rounds={res['rounds_survived']:02d}, Balance={res['balance']:.2f}, Stability={res['stability']:.1f}, Death={res['death_cause']} ({duration:.1f}s)")
                 sys.stdout.flush()
             except Exception as e:
                 print(f"Seed {seed:02d} FAILED: {str(e)}")
@@ -146,7 +148,7 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     raw_csv = os.path.join(log_dir, f"multiseed_raw_{start_seed}_{end_seed}.csv")
     with open(raw_csv, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['model', 'seed', 'rounds_survived', 'stability', 'death_cause'])
+        writer = csv.DictWriter(f, fieldnames=['model', 'seed', 'rounds_survived', 'stability', 'balance', 'death_cause'])
         writer.writeheader()
         writer.writerows(all_results)
     
@@ -154,33 +156,31 @@ def main():
     summary_md = os.path.join(log_dir, "multiseed_summary.md")
     report = ["# Oekolopoly Sovereign Death Benchmark - Multi-Seed Summary\n"]
     report.append(f"Generated at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    report.append("| Mode | n | Mean Rounds ± CI 95% | Survival Rate | Mean Stability | Dominant Death Cause |")
-    report.append("| :--- | :-: | :--- | :--- | :--- | :--- |")
-    
+    report.append("| Mode | n | Max Rounds | Mean Rounds ± CI 95% | Mean Balance ± CI 95% | Mean Stability | Dominant Death Cause |")
+    report.append("| :--- | :-: | :-: | :--- | :--- | :--- | :--- |")
+
     for mode_label in ["Paper", "Sovereign"]:
         mode_data = [r for r in all_results if r['model'] == mode_label]
         n = len(mode_data)
         if n == 0:
             continue
-            
+
         rounds = [r['rounds_survived'] for r in mode_data]
         stabs = [r['stability'] for r in mode_data]
-        
+        balances = [r['balance'] for r in mode_data]
+
+        max_r = max(rounds)
         mean_r = np.mean(rounds)
-        std_r = np.std(rounds)
-        ci_r = 1.96 * std_r / math.sqrt(n) if n > 0 else 0
-        
-        survival_rate = (sum(1 for r in mode_data if r['rounds_survived'] >= 30) / n) * 100
+        ci_r = 1.96 * np.std(rounds) / math.sqrt(n) if n > 0 else 0
+        mean_b = np.mean(balances)
+        ci_b = 1.96 * np.std(balances) / math.sqrt(n) if n > 0 else 0
         mean_s = np.mean(stabs)
-        
-        death_causes = [r['death_cause'] for r in mode_data if r['death_cause'] != 'survived_30']
-        if death_causes:
-            from collections import Counter
-            dominant_death = Counter(death_causes).most_common(1)[0][0]
-        else:
-            dominant_death = "None"
-            
-        report.append(f"| {mode_label} | {n} | {mean_r:.2f} ± {ci_r:.2f} | {survival_rate:.1f}% | {mean_s:.2f} | {dominant_death} |")
+
+        from collections import Counter
+        death_causes = [r['death_cause'] for r in mode_data if r['death_cause'] != 'survived']
+        dominant_death = Counter(death_causes).most_common(1)[0][0] if death_causes else "None"
+
+        report.append(f"| {mode_label} | {n} | {max_r} | {mean_r:.2f} ± {ci_r:.2f} | {mean_b:.2f} ± {ci_b:.2f} | {mean_s:.2f} | {dominant_death} |")
     
     with open(summary_md, 'w') as f:
         f.write("\n".join(report) + "\n")

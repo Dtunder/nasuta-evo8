@@ -40,7 +40,7 @@ def guided_rollout_wrapper(self_wrapper):
         d_done = False
         rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
 
-        while not d_done and rounds_played < 30:
+        while not d_done and rounds_played < 200:  # safety cap for rollout simulations
             V = temp_env.V
             # SYNC FIX: Access the wrapper's internal AP tracker if available
             if hasattr(self_wrapper, '_available_action_points'):
@@ -82,9 +82,6 @@ def guided_rollout_wrapper(self_wrapper):
                 rounds_played += 1  # FIX: only increment round counter when round ends
 
             d_done = term or trunc
-
-        if d_done and not (int(temp_env.V[8]) >= 30):
-            total_reward -= 2000000
 
         return total_reward
     except Exception as e:
