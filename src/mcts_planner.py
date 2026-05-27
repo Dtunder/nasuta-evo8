@@ -166,10 +166,10 @@ class SovereignMCTS:
             return valid
 
         wrapped_env.get_valid_actions = get_sovereign_valid_actions
-        
-        # 4. PATCH INSTANCE ONLY (avoids polluting all DeepCopyMCTSGymEnvWrapper instances)
-        wrapped_env.rollout = lambda: guided_rollout_wrapper(wrapped_env)
-        
+
+        # Save original rollout so it can be restored after search
+        _orig_rollout = DeepCopyMCTSGymEnvWrapper.rollout
+
         wrapped_env.reset()
         
         # 5. FULL STATE SYNC (Wrapper-Aware)
@@ -221,15 +221,17 @@ class SovereignMCTS:
         sys.stdout.flush()
         
         try:
-            # Capture the search logic
-            action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
-        except Exception as e:
-            if "charmap" in str(e):
-                m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
-                # We still want the best action even if tree printing fails
-                action = agent.search_root_node.get_best_action()
-            else:
-                raise e
+            DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
+            try:
+                action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
+            except Exception as e:
+                if "charmap" in str(e):
+                    m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
+                    action = agent.search_root_node.get_best_action()
+                else:
+                    raise e
+        finally:
+            DeepCopyMCTSGymEnvWrapper.rollout = _orig_rollout
         
         m_logger.info(" [SOVEREIGN DEEP THINKING TREE END]")
         m_logger.info("="*50)
