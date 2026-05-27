@@ -60,6 +60,7 @@ def _sovereign_get_valid_actions(self):
 
     Replaces the closure-based instance attribute that previously caused all MCTS tree nodes
     to read action masks from the original env instead of their own deepcopied state.
+    Uses _get_mask_from_chain() because gym.Wrapper has no __getattr__ proxy here.
     """
     # Bug A fix pattern: traverse __dict__ to bypass gym.Wrapper.__getattr__ blocking _ attrs
     curr = self
@@ -70,7 +71,7 @@ def _sovereign_get_valid_actions(self):
             break
         curr = getattr(curr, 'env', None)
 
-    valid = [i for i, v in enumerate(self.valid_action_mask()) if v]
+    valid = [i for i, v in enumerate(_get_mask_from_chain(self)) if v]
 
     if _GLOBAL_SOVEREIGN_MODE:
         V = self.env.unwrapped.V
@@ -103,6 +104,20 @@ def _sovereign_get_valid_actions(self):
         valid.remove(0)
     return valid
 
+def _get_mask_from_chain(wrapper):
+    """Traverse the wrapper chain to find valid_action_mask on OekoActionBuilderWrapper.
+
+    gym.Wrapper has no __getattr__ in this Gymnasium version, so attributes on inner
+    wrappers are NOT automatically proxied. We must traverse manually.
+    """
+    curr = wrapper
+    while curr is not None:
+        if 'valid_action_mask' in type(curr).__dict__:
+            return curr.valid_action_mask()
+        curr = getattr(curr, 'env', None)
+    return [True] * 9  # fallback: all actions valid
+
+
 def guided_rollout_wrapper(self_wrapper):
     """Uses a FAST heuristic for massive simulation throughput."""
     try:
@@ -125,9 +140,9 @@ def guided_rollout_wrapper(self_wrapper):
             if temp_env.done:
                 break
 
-            # Bug B fix: get_valid_actions() closes over original env; valid_action_mask()
-            # is proxied correctly through gym.Wrapper.__getattr__ to the deepcopy's own chain
-            valid_actions = [i for i, v in enumerate(self_wrapper.valid_action_mask()) if v]
+            # Bug B fix: gym.Wrapper has no __getattr__ proxy in this Gymnasium version,
+            # so traverse chain manually to reach OekoActionBuilderWrapper.valid_action_mask()
+            valid_actions = [i for i, v in enumerate(_get_mask_from_chain(self_wrapper)) if v]
             if not valid_actions:
                 break
 
