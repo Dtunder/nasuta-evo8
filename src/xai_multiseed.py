@@ -175,7 +175,7 @@ def main():
                 sys.stdout.flush()
     
     # Write Raw Data
-    log_dir = os.path.join(ROOT_DIR, "logs")
+    log_dir = os.path.join(ROOT_DIR, "evo10", "logs")
     os.makedirs(log_dir, exist_ok=True)
     raw_csv = os.path.join(log_dir, f"multiseed_raw_{start_seed}_{end_seed}.csv")
     with open(raw_csv, 'w', newline='') as f:
