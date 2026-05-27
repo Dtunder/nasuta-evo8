@@ -1,0 +1,11 @@
+model,seed,rounds_survived,stability,balance,death_cause
+Paper,15,5,-11.0,0.0,quality_of_life_collapse
+Paper,16,5,-7.0,0.0,reprorate_collapse
+Paper,17,5,-10.0,0.0,quality_of_life_collapse
+Paper,18,5,-17.0,0.0,quality_of_life_collapse
+Paper,19,6,-12.0,0.0,reprorate_collapse
+Sovereign,15,6,-13.0,0.0,quality_of_life_collapse
+Sovereign,16,5,-7.0,0.0,reprorate_collapse
+Sovereign,17,6,-15.0,0.0,quality_of_life_collapse
+Sovereign,18,5,-17.0,0.0,quality_of_life_collapse
+Sovereign,19,6,-13.0,0.0,overpopulation
