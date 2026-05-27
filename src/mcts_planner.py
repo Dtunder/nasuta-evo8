@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 import gymnasium as gym
-import torch
 import torch.nn as nn
 
 # MANDATORY SOVEREIGN LSTM PATCH (Fixes PyTorch/Gymnasium int64 conflict)
@@ -17,9 +16,6 @@ NASUTA_ROOT = os.path.join(ROOT_DIR, "reference_nasuta_gymcts", "gymcts-games-ma
 if NASUTA_ROOT not in sys.path:
     sys.path.insert(0, NASUTA_ROOT)
 
-# Standard MCTS Imports for oeko_core
-from oeko_core.envs.oeko_env import OekoEnv
-
 # Register env if not already registered (allows standalone use of mcts_planner)
 from gymnasium.envs.registration import register as _gym_register
 try:
@@ -30,8 +26,6 @@ except Exception:
 # GLOBAL SOVEREIGN COMPONENTS (Avoids DeepCopy overhead)
 _GLOBAL_SOVEREIGN_MODEL = None
 
-import time
-
 def guided_rollout_wrapper(self_wrapper):
     """Uses a FAST heuristic for massive simulation throughput."""
     try:
@@ -40,19 +34,25 @@ def guided_rollout_wrapper(self_wrapper):
         d_done = False
         rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
 
-        while not d_done and rounds_played < 30:
+        while not d_done and rounds_played < 50:  # safety cap for rollout simulations
             V = temp_env.V
-            # SYNC FIX: Access the wrapper's internal AP tracker if available
-            if hasattr(self_wrapper, '_available_action_points'):
-                avail = int(self_wrapper._available_action_points)
-            else:
-                avail = int(V[9])
+            # Bug A fix: gym.Wrapper.__getattr__ blocks _-prefixed attrs, so traverse __dict__
+            curr = self_wrapper
+            avail = int(V[9])
+            while curr is not None:
+                if '_available_action_points' in getattr(curr, '__dict__', {}):
+                    avail = int(curr.__dict__['_available_action_points'])
+                    break
+                curr = getattr(curr, 'env', None)
 
             if temp_env.done:
                 break
 
-            valid_actions = self_wrapper.get_valid_actions()
-            if not valid_actions: break
+            # Bug B fix: get_valid_actions() closes over original env; valid_action_mask()
+            # is proxied correctly through gym.Wrapper.__getattr__ to the deepcopy's own chain
+            valid_actions = [i for i, v in enumerate(self_wrapper.valid_action_mask()) if v]
+            if not valid_actions:
+                break
 
             # HEURISTIC SELECTION (Survival-First Sovereign Logic)
             if avail > 0:
@@ -82,9 +82,6 @@ def guided_rollout_wrapper(self_wrapper):
                 rounds_played += 1  # FIX: only increment round counter when round ends
 
             d_done = term or trunc
-
-        if d_done and not (int(temp_env.V[8]) >= 30):
-            total_reward -= 2000000
 
         return total_reward
     except Exception as e:
@@ -165,7 +162,7 @@ class SovereignMCTS:
                 # unless everything else is perfect.
                 if avail > 0 and 2 in valid:
                     prod_invested = getattr(wrapped_env, '_current_action_dict', {}).get("Production", 0)
-                    total_ap_start = V_real[9] + prod_invested + getattr(wrapped_env, '_current_action_dict', {}).get("Sanitation", 0) # Approx
+                    total_ap_start = V_real[9]
                     if prod_invested >= max(2, total_ap_start // 2.5):
                         if 2 in valid: valid.remove(2) # Soft cap
             
@@ -175,10 +172,10 @@ class SovereignMCTS:
             return valid
 
         wrapped_env.get_valid_actions = get_sovereign_valid_actions
-        
-        # 4. MONKEY PATCH THE CLASS (Top-level function avoids closure capture)
-        DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
-        
+
+        # Save original rollout so it can be restored after search
+        _orig_rollout = DeepCopyMCTSGymEnvWrapper.rollout
+
         wrapped_env.reset()
         
         # 5. FULL STATE SYNC (Wrapper-Aware)
@@ -230,15 +227,17 @@ class SovereignMCTS:
         sys.stdout.flush()
         
         try:
-            # Capture the search logic
-            action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
-        except Exception as e:
-            if "charmap" in str(e):
-                m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
-                # We still want the best action even if tree printing fails
-                action = agent.search_root_node.get_best_action()
-            else:
-                raise e
+            DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
+            try:
+                action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
+            except Exception as e:
+                if "charmap" in str(e):
+                    m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
+                    action = agent.search_root_node.get_best_action()
+                else:
+                    raise e
+        finally:
+            DeepCopyMCTSGymEnvWrapper.rollout = _orig_rollout
         
         m_logger.info(" [SOVEREIGN DEEP THINKING TREE END]")
         m_logger.info("="*50)
