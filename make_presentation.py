@@ -75,6 +75,33 @@ def parse_survival_trajectories(path):
     return rounds, sectors, politics
 
 
+def load_multiseed_stats():
+    """Load and aggregate parallel multiseed results from CSV if it exists."""
+    csv_path = os.path.join(LOG_DIR, "multiseed_raw.csv")
+    if not os.path.exists(csv_path):
+        return None
+    import csv
+    import math
+    data = {"Paper": [], "Sovereign": []}
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            m = row['model']
+            if m in data:
+                data[m].append(int(row['rounds_survived']))
+    
+    stats = {}
+    for m, rounds in data.items():
+        n = len(rounds)
+        if n > 0:
+            mean = sum(rounds) / n
+            var = sum((x - mean) ** 2 for x in rounds) / (n - 1) if n > 1 else 0
+            std = math.sqrt(var)
+            ci = 1.96 * std / math.sqrt(n) if n > 0 else 0
+            stats[m] = (mean, ci, n)
+    return stats
+
+
 # ================= Slide helpers =================
 def blank_slide():
     fig = plt.figure(figsize=(13.33, 7.5), facecolor=C_BG)
@@ -188,19 +215,46 @@ def build():
         header(axh, "ERGEBNIS 1", "Überlebte Runden (gemessen)")
         footer(axh, 5)
         ax = fig.add_axes([0.10, 0.16, 0.84, 0.52]); ax.set_facecolor(C_BG)
+        
+        # Load dynamic multi-seed stats
+        stats = load_multiseed_stats()
+        
         labels = list(ROUNDS.keys())
-        vals = [ROUNDS[k][0] for k in labels]
+        vals = []
+        errs = []
+        for k in labels:
+            if stats:
+                if k == "Paper\n(Vanilla UCT)" and "Paper" in stats:
+                    vals.append(stats["Paper"][0])
+                    errs.append(stats["Paper"][1])
+                    continue
+                elif k == "Sovereign MCTS\n(soft-constr.)" and "Sovereign" in stats:
+                    vals.append(stats["Sovereign"][0])
+                    errs.append(stats["Sovereign"][1])
+                    continue
+            vals.append(ROUNDS[k][0])
+            errs.append(0)
+            
         cols = [ROUNDS[k][1] for k in labels]
         tags = [ROUNDS[k][2] for k in labels]
-        bars = ax.bar(range(len(labels)), vals, color=cols, width=0.62)
-        for i, (b, v, tag) in enumerate(zip(bars, vals, tags)):
+        
+        # Plot bars with yerr for confidence intervals
+        bars = ax.bar(range(len(labels)), vals, yerr=[(0 if e == 0 else e) for e in errs], 
+                      color=cols, width=0.62, error_kw={"ecolor": C_TEXT, "lw": 1.5, "capsize": 5})
+        
+        for i, (b, v, e, tag) in enumerate(zip(bars, vals, errs, tags)):
             if tag == "ausstehend":
                 b.set_hatch("//"); b.set_alpha(0.45); b.set_edgecolor(C_NASUTA)
                 ax.text(b.get_x()+b.get_width()/2, 1.2, "?", ha="center", color=C_NASUTA,
                         fontsize=20, fontweight="bold")
             else:
-                ax.text(b.get_x()+b.get_width()/2, v+0.6, str(v), ha="center", color=C_TEXT,
-                        fontsize=18, fontweight="bold")
+                if e > 0:
+                    lbl = f"{v:.1f} ± {e:.1f}"
+                else:
+                    lbl = f"{int(v)}"
+                ax.text(b.get_x()+b.get_width()/2, v + (e if e > 0 else 0) + 0.6, lbl, 
+                        ha="center", color=C_TEXT, fontsize=14, fontweight="bold")
+                        
         ax.axhline(30, color=C_SOVFULL, ls="--", lw=1.2, alpha=0.7)
         ax.text(len(labels)-0.4, 30.6, "volles Spiel = 30", color=C_SOVFULL, fontsize=10)
         ax.set_xticks(range(len(labels)))
@@ -208,9 +262,15 @@ def build():
         ax.set_ylim(0, 33); ax.set_ylabel("Runden überlebt", color=C_TEXT, fontsize=12)
         ax.tick_params(colors=C_MUTED)
         for s in ax.spines.values(): s.set_color(C_MUTED)
-        axh.text(0.10, 0.105, "Paper vs. Sovereign MCTS: identischer Startzustand → direkt vergleichbar (2 → 9, +350%).  "
-                 "Sovereign Full (30) nutzt die volle Hybrid-Konfiguration.  Nasuta-Baseline folgt im 3-Wege-Lauf.",
-                 color=C_MUTED, fontsize=9.5, va="top")
+        
+        desc_text = "Paper vs. Sovereign MCTS: identischer Startzustand → direkt vergleichbar. "
+        if stats:
+            desc_text += f"Dynamische Multi-Seed-Daten geladen (n={stats['Paper'][2]}). "
+        else:
+            desc_text += "Paper (2) vs. Sovereign MCTS (9) statistische Baseline. "
+        desc_text += "Sovereign Full (30) nutzt die volle Hybrid-Konfiguration. Nasuta-Baseline folgt."
+        
+        axh.text(0.10, 0.105, desc_text, color=C_MUTED, fontsize=9.5, va="top")
         pdf.savefig(fig, facecolor=C_BG); plt.close(fig)
 
         # ---- 6. Equilibrium-Score Verlauf ----

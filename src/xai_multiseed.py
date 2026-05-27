@@ -27,6 +27,33 @@ def patched_lstm_init(self, input_size, hidden_size, *args, **kwargs):
     return original_lstm_init(self, int(input_size), int(hidden_size), *args, **kwargs)
 nn.LSTM.__init__ = patched_lstm_init
 
+# NESTED WRAPPER COLLISION FIX (Fixes RecordEpisodeStatistics AssertionError on duplicate "episode" key)
+from gymnasium.wrappers import RecordEpisodeStatistics
+import time
+
+_orig_statistics_step = RecordEpisodeStatistics.step
+def _patched_statistics_step(self, action):
+    obs, reward, terminated, truncated, info = self.env.step(action)
+    self.episode_returns += reward
+    self.episode_lengths += 1
+    if terminated or truncated:
+        if self._stats_key in info:
+            info.pop(self._stats_key, None)  # Prevent AssertionError collision
+        episode_time_length = round(time.perf_counter() - self.episode_start_time, 6)
+        info[self._stats_key] = {
+            "r": self.episode_returns,
+            "l": self.episode_lengths,
+            "t": episode_time_length,
+        }
+        self.time_queue.append(episode_time_length)
+        self.return_queue.append(self.episode_returns)
+        self.length_queue.append(self.episode_lengths)
+        self.episode_count += 1
+        self.episode_start_time = time.perf_counter()
+    return obs, reward, terminated, truncated, info
+RecordEpisodeStatistics.step = _patched_statistics_step
+
+
 from oeko_core.envs.oeko_env import OekoEnv
 from wrappers import OekoActionBuilderWrapper
 from sb3_contrib import RecurrentPPO
