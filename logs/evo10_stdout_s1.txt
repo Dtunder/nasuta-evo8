@@ -1,0 +1,18 @@
+S1A0B2C3D4E
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/gymnasium/envs/registration.py:636: UserWarning: [33mWARN: Overriding environment oeko_core-v2 already in registry.[0m
+  logger.warn(f"Overriding environment {new_spec.id} already in registry.")
+Loading model: /app/brain/sota_recurrent_champion.zip
+
+--- Benchmark Mode: Paper (sovereign_mode=False) ---
+  Starting Seed 00...  Seed 00: Rounds=06, Balance=13.33, Stability=-12.0, Death=overpopulation (9.2s)
+  Starting Seed 01...  Seed 01: Rounds=06, Balance=12.22, Stability=-11.0, Death=reprorate_collapse (8.8s)
+  Starting Seed 02...  Seed 02: Rounds=06, Balance=12.22, Stability=-8.0, Death=env_collapse (13.0s)
+  Starting Seed 03...  Seed 03: Rounds=06, Balance=17.78, Stability=-11.0, Death=overpopulation (9.5s)
+
+--- Benchmark Mode: Sovereign (sovereign_mode=True) ---
+  Starting Seed 00...  Seed 00: Rounds=06, Balance=13.33, Stability=-12.0, Death=overpopulation (9.4s)
+  Starting Seed 01...  Seed 01: Rounds=06, Balance=12.22, Stability=-11.0, Death=reprorate_collapse (9.4s)
+  Starting Seed 02...  Seed 02: Rounds=06, Balance=12.22, Stability=-8.0, Death=env_collapse (10.8s)
+  Starting Seed 03...  Seed 03: Rounds=06, Balance=17.78, Stability=-11.0, Death=overpopulation (9.8s)
+
+Benchmark finished. Raw data: /app/logs/multiseed_raw_0_4.csv, Summary: /app/logs/multiseed_summary.md
