@@ -34,19 +34,25 @@ def guided_rollout_wrapper(self_wrapper):
         d_done = False
         rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
 
-        while not d_done and rounds_played < 200:  # safety cap for rollout simulations
+        while not d_done and rounds_played < 50:  # safety cap for rollout simulations
             V = temp_env.V
-            # SYNC FIX: Access the wrapper's internal AP tracker if available
-            if hasattr(self_wrapper, '_available_action_points'):
-                avail = int(self_wrapper._available_action_points)
-            else:
-                avail = int(V[9])
+            # Bug A fix: gym.Wrapper.__getattr__ blocks _-prefixed attrs, so traverse __dict__
+            curr = self_wrapper
+            avail = int(V[9])
+            while curr is not None:
+                if '_available_action_points' in getattr(curr, '__dict__', {}):
+                    avail = int(curr.__dict__['_available_action_points'])
+                    break
+                curr = getattr(curr, 'env', None)
 
             if temp_env.done:
                 break
 
-            valid_actions = self_wrapper.get_valid_actions()
-            if not valid_actions: break
+            # Bug B fix: get_valid_actions() closes over original env; valid_action_mask()
+            # is proxied correctly through gym.Wrapper.__getattr__ to the deepcopy's own chain
+            valid_actions = [i for i, v in enumerate(self_wrapper.valid_action_mask()) if v]
+            if not valid_actions:
+                break
 
             # HEURISTIC SELECTION (Survival-First Sovereign Logic)
             if avail > 0:
