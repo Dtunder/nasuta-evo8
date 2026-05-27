@@ -1,0 +1,9 @@
+model,seed,rounds_survived,stability,balance,death_cause
+Paper,0,6,-12.0,13.333333333333334,overpopulation
+Paper,1,6,-11.0,12.222222222222221,reprorate_collapse
+Paper,2,6,-8.0,12.222222222222221,env_collapse
+Paper,3,6,-11.0,17.77777777777778,overpopulation
+Sovereign,0,6,-12.0,13.333333333333334,overpopulation
+Sovereign,1,6,-11.0,12.222222222222221,reprorate_collapse
+Sovereign,2,6,-8.0,12.222222222222221,env_collapse
+Sovereign,3,6,-11.0,17.77777777777778,overpopulation

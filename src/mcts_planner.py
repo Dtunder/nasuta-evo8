@@ -39,8 +39,10 @@ def guided_rollout_wrapper(self_wrapper):
         total_reward = 0
         d_done = False
         rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
+        step_count = 0
 
-        while not d_done and rounds_played < 30:
+        while not d_done and rounds_played < 200 and step_count < 100:
+            step_count += 1
             V = temp_env.V
             # SYNC FIX: Access the wrapper's internal AP tracker if available
             if hasattr(self_wrapper, '_available_action_points'):
@@ -56,8 +58,11 @@ def guided_rollout_wrapper(self_wrapper):
 
             # HEURISTIC SELECTION (Survival-First Sovereign Logic)
             if avail > 0:
+                # Force end of round if looping too long
+                if step_count > 80:
+                    move = 0
                 # 1. CRITICAL PROTECTION: Quality of Life (Protects Politics/Stability)
-                if 5 in valid_actions and V[3] < 15: move = 5
+                elif 5 in valid_actions and V[3] < 15: move = 5
                 # 2. SYSTEMIC STABILITY: Production (build it up if low) — FIX: was V[7] (Politics), must be V[1]
                 elif 2 in valid_actions and V[1] < 10: move = 2
                 # 3. ENVIRONMENTAL RECOVERY: Sanitation
@@ -82,9 +87,6 @@ def guided_rollout_wrapper(self_wrapper):
                 rounds_played += 1  # FIX: only increment round counter when round ends
 
             d_done = term or trunc
-
-        if d_done and not (int(temp_env.V[8]) >= 30):
-            total_reward -= 2000000
 
         return total_reward
     except Exception as e:
