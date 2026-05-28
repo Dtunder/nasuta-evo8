@@ -1,0 +1,37 @@
+RUN_TOKEN=470A90AB92EA
+python : C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\gymnasium\envs\registration.py:636:
+UserWarning: [33mWARN: Overriding environment oeko_core-v2 already in registry.[0m
+In Zeile:1 Zeichen:61
++ ... _SIMS="20"; python C:\Users\user\.gemini\antigravity-ide\brain\8a6507 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\A...n registry.[0m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+  logger.warn(f"Overriding environment {new_spec.id} already in registry.")
+Loading model: C:\Users\user\nasuta_evo\brain\sota_recurrent_champion.zip
+
+--- Benchmark Mode: Paper (sovereign_mode=False) ---
+  Starting Seed 00...
+  Seed 00: Rounds=02, Balance=0.00, Stability=-3.0, Death=politics_collapse (0.3s)
+  Starting Seed 01...
+  Seed 01: Rounds=02, Balance=0.00, Stability=-3.0, Death=politics_collapse (0.2s)
+  Starting Seed 02...
+  Seed 02: Rounds=02, Balance=0.00, Stability=-3.0, Death=politics_collapse (0.2s)
+  Starting Seed 03...
+  Seed 03: Rounds=02, Balance=0.00, Stability=-3.0, Death=politics_collapse (0.3s)
+  Starting Seed 04...
+  Seed 04: Rounds=02, Balance=0.00, Stability=-3.0, Death=politics_collapse (0.3s)
+
+--- Benchmark Mode: Sovereign (sovereign_mode=True) ---
+  Starting Seed 00...
+  Seed 00: Rounds=10, Balance=0.77, Stability=-12.0, Death=env_collapse (1.2s)
+  Starting Seed 01...
+  Seed 01: Rounds=10, Balance=0.77, Stability=-12.0, Death=env_collapse (1.2s)
+  Starting Seed 02...
+  Seed 02: Rounds=10, Balance=0.77, Stability=-12.0, Death=env_collapse (1.1s)
+  Starting Seed 03...
+  Seed 03: Rounds=10, Balance=0.77, Stability=-12.0, Death=env_collapse (1.2s)
+  Starting Seed 04...
+  Seed 04: Rounds=10, Balance=0.77, Stability=-12.0, Death=env_collapse (1.2s)
+
+Benchmark finished. Raw data: C:\Users\user\nasuta_evo\logs\multiseed_raw_0_5.csv, Summary: C:\Users\user\nasuta_evo\logs\multiseed_summary.md

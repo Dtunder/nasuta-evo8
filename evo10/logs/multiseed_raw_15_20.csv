@@ -1,0 +1,11 @@
+model,seed,rounds_survived,stability,balance,death_cause
+Paper,15,2,-3.0,0.0,politics_collapse
+Paper,16,2,-3.0,0.0,politics_collapse
+Paper,17,2,-3.0,0.0,politics_collapse
+Paper,18,2,6.0,0.0,quality_of_life_collapse
+Paper,19,2,-3.0,0.0,politics_collapse
+Sovereign,15,5,-3.0,0.0,politics_collapse
+Sovereign,16,9,-6.0,0.0,quality_of_life_collapse
+Sovereign,17,7,-6.0,0.0,env_collapse
+Sovereign,18,5,-3.0,0.0,env_collapse
+Sovereign,19,8,-7.0,0.0,env_collapse
