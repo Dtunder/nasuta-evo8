@@ -1,0 +1,11 @@
+model,seed,rounds_survived,stability,balance,death_cause,run_token
+Paper,5,2,-3.0,0.0,politics_collapse,470A90AB92EA
+Paper,6,2,-3.0,0.0,politics_collapse,470A90AB92EA
+Paper,7,2,-3.0,0.0,politics_collapse,470A90AB92EA
+Paper,8,2,-3.0,0.0,politics_collapse,470A90AB92EA
+Paper,9,2,-3.0,0.0,politics_collapse,470A90AB92EA
+Sovereign,5,10,-12.0,0.7692307692307693,env_collapse,470A90AB92EA
+Sovereign,6,10,-12.0,0.7692307692307693,env_collapse,470A90AB92EA
+Sovereign,7,10,-12.0,0.7692307692307693,env_collapse,470A90AB92EA
+Sovereign,8,10,-12.0,0.7692307692307693,env_collapse,470A90AB92EA
+Sovereign,9,10,-12.0,0.7692307692307693,env_collapse,470A90AB92EA
