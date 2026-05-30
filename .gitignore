@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.log
+*.csv
+*.zip  # For models and other generated archives
+
+# Generated figures
+docs/figures/*.png
+logs/*.png
+
+# Test/Debug related files
+SOVEREIGN_JULES_TESTER.py
+check_attr.py
+check_attr_2.py
+check_gymcts.py
+debug_mcts.py
+evo10_local_bench.py
+generate_charts.py
+monitor_agent.py
+analysis_daemon.py
+profile_output.txt
+test_*.py
+
+# Other generated files
+error.log
+multiseed_output.log
+multiseed_progress.log
