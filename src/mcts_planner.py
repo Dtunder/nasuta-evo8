@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 import gymnasium as gym
-import torch
 import torch.nn as nn
 
 # MANDATORY SOVEREIGN LSTM PATCH (Fixes PyTorch/Gymnasium int64 conflict)
@@ -11,14 +10,38 @@ def patched_lstm_init(self, input_size, hidden_size, *args, **kwargs):
     return original_lstm_init(self, int(input_size), int(hidden_size), *args, **kwargs)
 nn.LSTM.__init__ = patched_lstm_init
 
+# NESTED WRAPPER COLLISION FIX (Fixes RecordEpisodeStatistics AssertionError on duplicate "episode" key)
+from gymnasium.wrappers import RecordEpisodeStatistics
+import time
+
+_orig_statistics_step = RecordEpisodeStatistics.step
+def _patched_statistics_step(self, action):
+    obs, reward, terminated, truncated, info = self.env.step(action)
+    self.episode_returns += reward
+    self.episode_lengths += 1
+    if terminated or truncated:
+        if self._stats_key in info:
+            info.pop(self._stats_key, None)  # Prevent AssertionError collision
+        episode_time_length = round(time.perf_counter() - self.episode_start_time, 6)
+        info[self._stats_key] = {
+            "r": self.episode_returns,
+            "l": self.episode_lengths,
+            "t": episode_time_length,
+        }
+        self.time_queue.append(episode_time_length)
+        self.return_queue.append(self.episode_returns)
+        self.length_queue.append(self.episode_lengths)
+        self.episode_count += 1
+        self.episode_start_time = time.perf_counter()
+    return obs, reward, terminated, truncated, info
+RecordEpisodeStatistics.step = _patched_statistics_step
+
+
 # Priority paths for Nasuta's original work
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NASUTA_ROOT = os.path.join(ROOT_DIR, "reference_nasuta_gymcts", "gymcts-games-main", "src")
 if NASUTA_ROOT not in sys.path:
     sys.path.insert(0, NASUTA_ROOT)
-
-# Standard MCTS Imports for oeko_core
-from oeko_core.envs.oeko_env import OekoEnv
 
 # Register env if not already registered (allows standalone use of mcts_planner)
 from gymnasium.envs.registration import register as _gym_register
@@ -29,8 +52,71 @@ except Exception:
 
 # GLOBAL SOVEREIGN COMPONENTS (Avoids DeepCopy overhead)
 _GLOBAL_SOVEREIGN_MODEL = None
+_GLOBAL_SOVEREIGN_MODE = False  # Bug C fix: passed to class-level patch without closure
 
-import time
+
+def _sovereign_get_valid_actions(self):
+    """Class-level patch for get_valid_actions — each deepcopy reads its OWN state (Bug C fix).
+
+    Replaces the closure-based instance attribute that previously caused all MCTS tree nodes
+    to read action masks from the original env instead of their own deepcopied state.
+    Uses _get_mask_from_chain() because gym.Wrapper has no __getattr__ proxy here.
+    """
+    # Bug A fix pattern: traverse __dict__ to bypass gym.Wrapper.__getattr__ blocking _ attrs
+    curr = self
+    avail = self.env.unwrapped.V[9]
+    while curr is not None:
+        if '_available_action_points' in getattr(curr, '__dict__', {}):
+            avail = int(curr.__dict__['_available_action_points'])
+            break
+        curr = getattr(curr, 'env', None)
+
+    valid = [i for i, v in enumerate(_get_mask_from_chain(self)) if v]
+
+    if _GLOBAL_SOVEREIGN_MODE:
+        V = self.env.unwrapped.V
+
+        # Helper: read _current_action_dict from own __dict__ chain
+        def _own_action_dict():
+            c = self
+            while c is not None:
+                if '_current_action_dict' in getattr(c, '__dict__', {}):
+                    return c.__dict__['_current_action_dict']
+                c = getattr(c, 'env', None)
+            return {}
+
+        if avail > 0:
+            if V[3] < 8:
+                if 5 in valid:
+                    return [5]
+            elif V[3] < 12:
+                last = _own_action_dict()
+                if last.get("Production", 0) > last.get("Quality of Life", 0):
+                    if 5 in valid:
+                        return [5]
+
+        if avail > 0 and 2 in valid:
+            prod_invested = _own_action_dict().get("Production", 0)
+            if prod_invested >= max(2, V[9] // 2.5):
+                valid.remove(2)
+
+    if avail > 0 and 0 in valid and len(valid) > 1:
+        valid.remove(0)
+    return valid
+
+def _get_mask_from_chain(wrapper):
+    """Traverse the wrapper chain to find valid_action_mask on OekoActionBuilderWrapper.
+
+    gym.Wrapper has no __getattr__ in this Gymnasium version, so attributes on inner
+    wrappers are NOT automatically proxied. We must traverse manually.
+    """
+    curr = wrapper
+    while curr is not None:
+        if 'valid_action_mask' in type(curr).__dict__:
+            return curr.valid_action_mask()
+        curr = getattr(curr, 'env', None)
+    return [True] * 9  # fallback: all actions valid
+
 
 def guided_rollout_wrapper(self_wrapper):
     """Uses a FAST heuristic for massive simulation throughput."""
@@ -40,19 +126,25 @@ def guided_rollout_wrapper(self_wrapper):
         d_done = False
         rounds_played = 0  # FIX: count ROUNDS not individual AP allocations
 
-        while not d_done and rounds_played < 30:
+        while not d_done and rounds_played < 50:  # safety cap for rollout simulations
             V = temp_env.V
-            # SYNC FIX: Access the wrapper's internal AP tracker if available
-            if hasattr(self_wrapper, '_available_action_points'):
-                avail = int(self_wrapper._available_action_points)
-            else:
-                avail = int(V[9])
+            # Bug A fix: gym.Wrapper.__getattr__ blocks _-prefixed attrs, so traverse __dict__
+            curr = self_wrapper
+            avail = int(V[9])
+            while curr is not None:
+                if '_available_action_points' in getattr(curr, '__dict__', {}):
+                    avail = int(curr.__dict__['_available_action_points'])
+                    break
+                curr = getattr(curr, 'env', None)
 
             if temp_env.done:
                 break
 
-            valid_actions = self_wrapper.get_valid_actions()
-            if not valid_actions: break
+            # Bug B fix: gym.Wrapper has no __getattr__ proxy in this Gymnasium version,
+            # so traverse chain manually to reach OekoActionBuilderWrapper.valid_action_mask()
+            valid_actions = [i for i, v in enumerate(_get_mask_from_chain(self_wrapper)) if v]
+            if not valid_actions:
+                break
 
             # HEURISTIC SELECTION (Survival-First Sovereign Logic)
             if avail > 0:
@@ -83,9 +175,6 @@ def guided_rollout_wrapper(self_wrapper):
 
             d_done = term or trunc
 
-        if d_done and not (int(temp_env.V[8]) >= 30):
-            total_reward -= 2000000
-
         return total_reward
     except Exception as e:
         return -5000000
@@ -110,75 +199,29 @@ class SovereignMCTS:
         """
         Performs a deep MCTS search guided by the neural policy.
         """
-        global _GLOBAL_SOVEREIGN_MODEL
+        global _GLOBAL_SOVEREIGN_MODEL, _GLOBAL_SOVEREIGN_MODE
         _GLOBAL_SOVEREIGN_MODEL = self.model
-        
+        _GLOBAL_SOVEREIGN_MODE = self.sovereign_mode
+
         # Create a simulation copy
         sim_env = gym.make("oeko_core-v2")
-        
+
         # Import Nasuta's specialized MCTS components
         from gymcts.gymcts_agent import GymctsAgent
         from gymcts.gymcts_deepcopy_wrapper import DeepCopyMCTSGymEnvWrapper
         from wrappers import OekoActionBuilderWrapper
-        
+
         # 1. Wrap with ActionBuilder (Nasuta's translation layer)
         wrapped_env = OekoActionBuilderWrapper(sim_env)
-        
+
         # 2. Wrap with DeepCopy (State management for MCTS)
         wrapped_env = DeepCopyMCTSGymEnvWrapper(wrapped_env)
-        
-        # 3. Add MCTS Bridges (Robust recursive search for Nasuta compatibility)
-        def find_valid_mask():
-            curr = wrapped_env
-            while curr is not None:
-                if hasattr(curr, 'valid_action_mask'):
-                    return curr.valid_action_mask()
-                curr = getattr(curr, 'env', None)
-            return [True] * 9 # Fallback
-            
-        def get_sovereign_valid_actions():
-            mask = find_valid_mask()
-            # SYNC FIX
-            if hasattr(wrapped_env, '_available_action_points'):
-                avail = int(wrapped_env._available_action_points)
-            else:
-                avail = int(wrapped_env.env.unwrapped.V[9])
-                
-            valid = [i for i, v in enumerate(mask) if v]
-            
-            if self.sovereign_mode:
-                # SOVEREIGN GOVERNANCE: Humanity Protocol (Anti-Suicide Layer)
-                V_real = wrapped_env.env.unwrapped.V
-                
-                # 1. THE HUMANITY LIMIT: If QoL is dropping, we MUST invest in QoL (Action 5)
-                # If QoL < 12, we force a 1:1 balance with Production or absolute priority if < 8
-                if avail > 0:
-                    if V_real[3] < 8:
-                        if 5 in valid: return [5] # Absolute survival
-                    elif V_real[3] < 12:
-                        # Forced balance: If we just did Prod, we MUST do QoL
-                        last_actions = getattr(wrapped_env, '_current_action_dict', {})
-                        if last_actions.get("Production", 0) > last_actions.get("Quality of Life", 0):
-                            if 5 in valid: return [5]
-                
-                # 2. THE INDUSTRIAL CAP: Never spend more than 40% of AP on Production in one turn
-                # unless everything else is perfect.
-                if avail > 0 and 2 in valid:
-                    prod_invested = getattr(wrapped_env, '_current_action_dict', {}).get("Production", 0)
-                    total_ap_start = V_real[9] + prod_invested + getattr(wrapped_env, '_current_action_dict', {}).get("Sanitation", 0) # Approx
-                    if prod_invested >= max(2, total_ap_start // 2.5):
-                        if 2 in valid: valid.remove(2) # Soft cap
-            
-            # HARD MASKING: Only remove Action 0 if there's SOMETHING ELSE to do
-            if avail > 0 and 0 in valid and len(valid) > 1:
-                valid.remove(0)
-            return valid
 
-        wrapped_env.get_valid_actions = get_sovereign_valid_actions
-        
-        # 4. MONKEY PATCH THE CLASS (Top-level function avoids closure capture)
-        DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
-        
+        # Save originals — both rollout and get_valid_actions are patched at class level
+        # so every deepcopy node uses its own state (Bug B fix = rollout, Bug C fix = get_valid_actions)
+        _orig_rollout = DeepCopyMCTSGymEnvWrapper.rollout
+        _orig_get_valid_actions = DeepCopyMCTSGymEnvWrapper.get_valid_actions
+
         wrapped_env.reset()
         
         # 5. FULL STATE SYNC (Wrapper-Aware)
@@ -230,15 +273,19 @@ class SovereignMCTS:
         sys.stdout.flush()
         
         try:
-            # Capture the search logic
-            action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
-        except Exception as e:
-            if "charmap" in str(e):
-                m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
-                # We still want the best action even if tree printing fails
-                action = agent.search_root_node.get_best_action()
-            else:
-                raise e
+            DeepCopyMCTSGymEnvWrapper.rollout = guided_rollout_wrapper
+            DeepCopyMCTSGymEnvWrapper.get_valid_actions = _sovereign_get_valid_actions
+            try:
+                action = agent.vanilla_mcts_search(num_simulations=self.num_simulations)
+            except Exception as e:
+                if "charmap" in str(e):
+                    m_logger.warning(" [Encoding Error] Tree contains characters not supported by console. Falling back to simple best move.")
+                    action = agent.search_root_node.get_best_action()
+                else:
+                    raise e
+        finally:
+            DeepCopyMCTSGymEnvWrapper.rollout = _orig_rollout
+            DeepCopyMCTSGymEnvWrapper.get_valid_actions = _orig_get_valid_actions
         
         m_logger.info(" [SOVEREIGN DEEP THINKING TREE END]")
         m_logger.info("="*50)
