@@ -1,0 +1,4 @@
+Top 3 Death Causes:
+politics_collapse: 18
+quality_of_life_collapse: 14
+env_collapse: 8
