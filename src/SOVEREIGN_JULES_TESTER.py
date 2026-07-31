@@ -29,15 +29,18 @@ from wrappers import OekoActionBuilderWrapper
 from sb3_contrib import RecurrentPPO
 
 # --- GYMNASIUM STATS PATCH (Fixes the Step 14 Crash) ---
-import gymnasium.wrappers.common
-def patched_step(self, action):
-    obs, reward, terminated, truncated, info = self.env.step(action)
-    if self._stats_key in info:
-        del info[self._stats_key]
-    return obs, reward, terminated, truncated, info
-# We only apply this if the problematic wrapper is active
-# Note: In some versions it's RecordEpisodeStatistics.
-# Here we just ensure info is clean in the bridge.
+try:
+    import gymnasium.wrappers.common
+    def patched_step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if self._stats_key in info:
+            del info[self._stats_key]
+        return obs, reward, terminated, truncated, info
+    # We only apply this if the problematic wrapper is active
+    # Note: In some versions it's RecordEpisodeStatistics.
+    # Here we just ensure info is clean in the bridge.
+except ImportError:
+    pass
 
 class SovereignJulesTester:
     def __init__(self, model_path):
