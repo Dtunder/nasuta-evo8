@@ -17,6 +17,19 @@ from pygame.math import Vector2
 import numpy as np
 import pygame
 
+_FONT_CACHE = {}
+
+def get_cached_font(name, size):
+    """
+    Memoizes pygame.font.SysFont to prevent expensive system font lookups on every frame,
+    which otherwise causes massive UI latency.
+    """
+    key = (name, size)
+    if key not in _FONT_CACHE:
+        _FONT_CACHE[key] = pygame.font.SysFont(name, size)
+    return _FONT_CACHE[key]
+
+
 # Configure Professional Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("SovereignChampion")
@@ -238,7 +251,7 @@ def get_text_from_file(path):
 
 def draw_text(pos, image, font_size, text, color=color_black):
     lines = text.splitlines()
-    font = pygame.font.SysFont('Arial', font_size)
+    font = get_cached_font('Arial', font_size)
     for index, line in enumerate(lines):
         image.blit(font.render(line, True, color), (pos.x, pos.y + (font_size * index)))
 
@@ -409,7 +422,7 @@ class Game:
         self.episode_starts = np.ones((1,), dtype=bool)
         self.current_action = [0, 0, 0, 0, 0, 0]
         self.all_actions = []
-        self.action_font = pygame.font.SysFont('Times New Roman', 30)
+        self.action_font = get_cached_font('Times New Roman', 30)
         self.game_loop = True
         self.done = False
         self.available_actionpoints = self.env.unwrapped.V[self.env.unwrapped.POINTS]
@@ -967,7 +980,7 @@ class Button(pygame.sprite.Sprite):
             pos.x / 1920 * pygame.display.get_window_size()[0], pos.y / 1080 * pygame.display.get_window_size()[1])
         self.is_pressed = False
         self.font_size = int(font_size / 1920 * pygame.display.get_window_size()[0])
-        self.button_text_font = pygame.font.SysFont('Times New Roman', self.font_size)
+        self.button_text_font = get_cached_font('Times New Roman', self.font_size)
         self.text = text
         self.visible = True
 
@@ -1014,7 +1027,7 @@ class Label(pygame.sprite.Sprite):
         self.rect.topleft = (
             pos.x / 1920 * pygame.display.get_window_size()[0], pos.y / 1080 * pygame.display.get_window_size()[1])
         self.font_size = int(font_size / 1920 * pygame.display.get_window_size()[0])
-        self.text_font = pygame.font.SysFont('Times New Roman', self.font_size)
+        self.text_font = get_cached_font('Times New Roman', self.font_size)
         self.visible = True
 
     def update(self, *args, **kwargs):
@@ -1044,7 +1057,7 @@ class Diagram(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.topleft = (
             pos.x / 1920 * pygame.display.get_window_size()[0], pos.y / 1080 * pygame.display.get_window_size()[1])
-        self.button_text_font = pygame.font.SysFont('Times New Roman',
+        self.button_text_font = get_cached_font('Times New Roman',
                                                     int(20 / 1920 * pygame.display.get_window_size()[0]))
         self.min_value = min_value
         self.max_value = max_value
@@ -1134,7 +1147,7 @@ class Diagram(pygame.sprite.Sprite):
                             (5, self.rect.size[1] - (30 / 1920 * pygame.display.get_window_size()[0])))
         else:
             self.image.fill(color_turky)
-            font = pygame.font.SysFont('Times New Roman', int(50 / 1920 * pygame.display.get_window_size()[0]))
+            font = get_cached_font('Times New Roman', int(50 / 1920 * pygame.display.get_window_size()[0]))
             self.image.blit(font.render("?", True, color_black), (5, 115 / 1920 * pygame.display.get_window_size()[0]))
             pygame.draw.rect(self.image, color_black, pygame.Rect((0, 0), self.size), 2)
 
